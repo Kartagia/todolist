@@ -26,32 +26,61 @@ import { AuthContext } from './Authentication.jsx';
  const baseChars = [
    "A-Z", "a-z", "0-9"
   ];
- const hostNameSegmentRegex = new RegExp(`([${baseChars.join("")}]` + "(?:" + `[${[...baseChars, "-"].join("") }]{0,61}`+ `[${baseChars.join("")}]` + ")?)");
- const urlHostRegex = new RegExp(hostNameSegmentRegex.source + "(?:\\." + hostNameSegmentRegex.source + ")+");
- const ip4segmentRegex = new RegExp("(?:2(?:5[0-5]|[0-4][0-9])|1[0-9]{2}|[1-9]?[0-9])")
- const ip4regex = new RegExp(ip4segmentRegex.source + "(?:\\." + ip4segmentRegex.source + "){3}")
- const simpleIp6regex = new RegExp(
-   "[a-fA-F0-9]{2}" + 
-   "(?::[a-fA-F0-9]{2}){7}");
- const ip6regex = new RegExp(
-   "\\[" + 
-   [
-     simpleIp6Regex.source
-     ].join("|") + "\\]"
-   );
- const hostNameRegex = new RegExp(
-   "(?:" + [
-     ip4regex.source, 
-     ip6regex.source,
-     urlHostRegex.source
-     ].join("|") + ")"
-   )
+
+/**
+ * The regular expression matching to host name segment.
+ * @type {RegExp}
+ */
+const hostNameSegmentRegex = new RegExp(`([${baseChars.join("")}]` + "(?:" + `[${[...baseChars, "-"].join("") }]{0,61}`+ `[${baseChars.join("")}]` + ")?)");
+/**
+* The regular expresison matching to URL host-name (without checking for all numbers)
+* @type {RegExp} 
+*/
+const urlHostRegex = new RegExp(hostNameSegmentRegex.source + "(?:\\." + hostNameSegmentRegex.source + ")+");
  
- export function validEmail(email) {
-   return typeof email === "string" && (
-     new RegExp("^" + emailStartRegex.source emailRemainderRegex.source+ "\\@" + hostNameRegex "$")
-     ).test(email);
- }
+/**
+* The regular expression matching to IPv4 address segment.
+*/
+const ip4segmentRegex = new RegExp("(?:2(?:5[0-5]|[0-4][0-9])|1[0-9]{2}|[1-9]?[0-9])")
+ 
+/**
+* The regular epxression matching to an IPv4 address.
+*/
+const ip4regex = new RegExp(ip4segmentRegex.source + "(?:\\." + ip4segmentRegex.source + "){3}")
+ 
+/**
+* The regular expression matching a simple ipv6.
+*/
+const simpleIp6regex = new RegExp(
+  "[a-fA-F0-9]{2}" + 
+  "(?::[a-fA-F0-9]{2}){7}");
+
+/**
+ * The regular expression matching ip6regex
+ */
+const ip6regex = new RegExp(
+  "\\[" + 
+  [
+    simpleIp6Regex.source
+    ].join("|") + "\\]"
+  );
+
+/**
+ * 
+ */
+const hostNameRegex = new RegExp(
+  "(?:" + [
+    ip4regex.source, 
+    ip6regex.source,
+    urlHostRegex.source
+    ].join("|") + ")"
+  )
+
+export function validEmail(email) {
+  return typeof email === "string" && (
+    new RegExp("^" + emailStartRegex.source + emailRemainderRegex.source+ "\\@" + hostNameRegex.source +  "$")
+    ).test(email);
+}
  
  export function validSecret(secret) {
    return typeof secret === "string" && secret.length <= 72 && (new RegExp("^[\\p{L}\\p{N}\\p{Pu}][\\s\\p{L}\\p{N}\\p{Pu}]{4,70}[\\p{L}\\p{N}\\p{Pu}]$", "u")).test(secret) && (new RegExp("\\p{Lu}", "u")).test(secret) &&
