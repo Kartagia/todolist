@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyAV2k4gs7L_6NeXSOzC7BaIt5eCWrftSYI",
+apiKey: "Add API key here",
   authDomain: "todo-js-428e3.firebaseapp.com",
   databaseURL: "https://todo-js-428e3-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "todo-js-428e3",
