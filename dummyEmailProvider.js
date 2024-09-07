@@ -1,0 +1,228 @@
+
+import bcrypt from './cdn_modules/bcryptjs@2.4.3/bcrypt.min.js';
+
+function equalUser(compared, comparee) {
+  return compared.userInfo.id === comparee.id;
+}
+
+/**
+ * Get the hashed secret.
+ * 
+ * @param secret The hashed secret.
+ * @param salt The salt used for hashing.
+ * @return The promise of the hashed secret.
+ */
+function hash(secret, salt) {
+  return new Promise( (resolve, reject) => {
+    if (salt == null) {
+      reject(SyntaxError("Missing salt"));
+      return;
+    }
+    
+    bcrypt.hash(secret, salt, (err, result) => {
+    if (err) {
+      reject(err);
+    } else {
+      resolve(result);
+    }
+  })
+  });
+}
+/**
+ * Get salt.
+ * @param {string} [email] The user email of the user.
+ *  @returns If user is given, the salt of the user. Otherwise the newly generated salt.
+ */
+async function getSalt(email=null) {
+  if (email == null) {
+    return new Promise((resolve, reject) => {
+      bcrypt.getSalt(10, (err, salt) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(salt);
+        }
+      })
+    })
+  } else {
+    const found = users.find(current => (current.email == email));
+    return found ? found.salt : null;
+  
+}
+}
+
+function nextUserId() {
+  var result = Crypto.randomUUID();
+  while (users.find( current => (current.id === result))) {
+    result = Crypto.randomUUID();
+  }
+  return result;
+}
+
+/**
+ * @typedef {Object} UserData
+ * @property {string} id The user identifier.
+ * @property {string} email The user email.
+ * @property {string} hashedSecret The hashed secret.
+ * @property {string} salt The salt used for hashing.
+ * @property {import("./Authentication.jsx").UserInfo & {id: string}} userInfo The user information.
+ * @property {number} [expireTime] The account expiration time.
+ */
+
+/**
+ * @type {UserData}
+ */
+var users = [];
+
+function invalidUserError() {
+  return {
+  errorCode: 1,
+  errorMessage: "Invalid username or password"
+};
+}
+
+function existingAccountError() {
+ return {
+   errorCode: 2,
+   errorMessage: "Account not available"
+ };
+}
+
+function createUser(email, secret, userInfo=null) {
+  return new Promise( (resolve, reject) => {
+    if (email == null || secret == null) {
+      reject(invalidUserError())
+    }
+  const user = users.find(current => (current.email=== email));
+  if (user) {
+    reject(existingAccountError())
+  }
+  getSalt().then( (salt) => {
+    hash(secret, salt).then( hashedSecret => {
+      const id = nextUserId();
+      users.push({
+  id,
+  email,
+  hashedSecret: hash(secret, salt),
+  salt,
+  userInfo: {
+    id,
+    displayName: email
+  }
+      });
+    }).catch(reject);
+    
+}).catch(reject);
+});
+}
+
+function loginUser(email, secret) {
+  return new Promise( (resolve, reject) => {
+    const user = users.find( current => (current.email === email));
+    if (user) {
+      bcrypt.compare(secret, user.hashedSecret, (err, result) => {
+          if (err) {
+            reject(err);
+          } else if (result) {
+            resolve(user.userInfo);
+          } else {
+            reject(invalidUserError());
+          }
+            }
+            )
+    } else {
+      reject(invalidUserError());
+    }
+  });
+}
+
+/**
+ * The session data.
+ * @template DATA Session data.
+ * @typedef {Object} SessionData
+ * @property {string} startTime The session start time.
+ * @property {string} [expireTime] The optional expiration time.
+ * @property {string} updateTime The update time.
+ * @property {DATA} data The session data.
+ */
+
+/**
+ * @type {Record<string, SessionData>}
+ */
+var sessions = {};
+
+/**
+ * @template DATA The session data type.
+ * @param {DATA} data The session data.
+ * @param {string|number} [expires] The optional expiration time.
+ * @returns {SessionData<DATA>} The created session data.
+ */
+function createSession(data, expires=null) {
+  const startTime = (new (Date.now())).toISOString();
+  const expireTime = (expires == null ? null : (typeof expires === "number" ? new Date(expires) : new Date(Date.parse(expires))).toISOString());
+  return {
+    startTime,
+    expireTime,
+    updateTime: startTime,
+    data
+  };
+}
+
+function getExpireTime(source, timeoutMs) {
+  if (source != null) {
+    switch (typeof source) {
+      case "string":
+        return (new Date(Date.parse(source) + timeoutMs)).toISOString();
+      case "number":
+        return (new Date(source + timeoutMs)).toISOString();
+    }
+  }
+  return null;
+}
+
+function updateSessionData(source, dataAlter) {
+  const updateTime = (new Date(Date.now())).toISOString();
+  const data = (dataAlter != null && (source.expireTime == null || updateTime < source.expireTime) ? dataAlter(source.data): source.data);
+  const expireTime = (target.timeout > 0 ? getExpireTime(updateTime, target.timeout): target.expireTime);
+  return {
+    ...source,
+    updateTime,
+    expireTime,
+    data
+  };
+}
+
+function updateSession(user, data) {
+  const userId = users.find(current => (current.userInfo == user));
+  if (userId != null && userId.id in sessions) {
+    sessions[userId.id] = updateSessionData(sessions[userId.id], ()=>(data));
+  }
+  return Promise.reject("No such session exists");
+}
+
+function logoutUser(user) {
+  return new Promise( (resolve, reject) => {
+  const userData = users.find( current => equalUser(current,user));
+  if (user && user.id in sessions) {
+    sessions[user.id].expireTime = (new Date(Date.now())).toISOString();
+  }
+  resolve();
+  });
+  
+}
+/**
+ * @type {import("./login.js").EmailProvideraaInfo}
+ */
+var provider = {
+  login(email, secret) {
+    return loginUser(email, secret);
+  },
+  logout(user) {
+    return logoutUser(user);
+  },
+  register(email, secret) {
+    return createUser(email, secret);
+  }
+};
+
+export default provider;
