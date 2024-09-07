@@ -26,33 +26,81 @@ import { AuthContext } from './Authentication.jsx';
  const baseChars = [
    "A-Z", "a-z", "0-9"
   ];
- const hostNameSegmentRegex = new RegExp(`([${baseChars.join("")}]` + "(?:" + `[${[...baseChars, "-"].join("") }]{0,61}`+ `[${baseChars.join("")}]` + ")?)");
- const urlHostRegex = new RegExp(hostNameSegmentRegex.source + "(?:\\." + hostNameSegmentRegex.source + ")+");
- const ip4segmentRegex = new RegExp("(?:2(?:5[0-5]|[0-4][0-9])|1[0-9]{2}|[1-9]?[0-9])")
- const ip4regex = new RegExp(ip4segmentRegex.source + "(?:\\." + ip4segmentRegex.source + "){3}")
- const simpleIp6regex = new RegExp(
-   "[a-fA-F0-9]{2}" + 
-   "(?::[a-fA-F0-9]{2}){7}");
- const ip6regex = new RegExp(
-   "\\[" + 
-   [
-     simpleIp6Regex.source
-     ].join("|") + "\\]"
-   );
- const hostNameRegex = new RegExp(
-   "(?:" + [
-     ip4regex.source, 
-     ip6regex.source,
-     urlHostRegex.source
-     ].join("|") + ")"
-   )
+
+/**
+ * The regular expression matching to host name segment.
+ * @type {RegExp}
+ */
+const hostNameSegmentRegex = new RegExp(`([${baseChars.join("")}]` + "(?:" + `[${[...baseChars, "-"].join("") }]{0,61}`+ `[${baseChars.join("")}]` + ")?)");
+/**
+* The regular expresison matching to URL host-name (without checking for all numbers)
+* @type {RegExp} 
+*/
+const urlHostRegex = new RegExp(hostNameSegmentRegex.source + "(?:\\." + hostNameSegmentRegex.source + ")+");
  
- export function validEmail(email) {
-   return typeof email === "string" && (
-     new RegExp("^" + emailStartRegex.source emailRemainderRegex.source+ "\\@" + hostNameRegex "$")
-     ).test(email);
- }
+/**
+* The regular expression matching to IPv4 address segment.
+*/
+const ip4segmentRegex = new RegExp("(?:2(?:5[0-5]|[0-4][0-9])|1[0-9]{2}|[1-9]?[0-9])")
  
+/**
+* The regular epxression matching to an IPv4 address.
+*/
+const ip4regex = new RegExp(ip4segmentRegex.source + "(?:\\." + ip4segmentRegex.source + "){3}")
+ 
+const ip6segmentRegex = new RegExp("(?:[0-9a-fA-F]{1,4})");
+/**
+* The regular expression matching a simple ipv6.
+*/
+const simpleIp6regex = new RegExp(
+  ip6segmentRegex.source +
+  "(?::" + ip6segmentRegex.source + "{1,4}){7}");
+const ipv6shorthandRegex = new RexExp([0,1,2,3,4,5,6,7].reduce(
+  (result, prefixSize) => {
+    const prefix = (ip6segmentRegex.source+":").repeat(prefixSize) + (prefixSize == 0 || prefixSize == 7 ? ":" : "") + ("(?::" + ip6segmentRegex.source + `){${prefixSize==0?1:0},${7-prefixSize}}`);
+    result.push(prefix);
+    return result;
+  }, []
+  ).join("|"));
+const ip6LocalhostRegex = new RegExp("::1");
+
+/**
+ * The regular expression matching ip6regex
+ */
+const ip6regex = new RegExp(
+  "\\[" + 
+  [
+    simpleIp6Regex.source,
+    ipv6shorthandRegex.source
+    ].join("|") + "\\]"
+  );
+
+/**
+ * The regular expression matching host name.
+ */
+const hostNameRegex = new RegExp(
+  "(?:" + [
+    ip4regex.source, 
+    ip6regex.source,
+    urlHostRegex.source
+    ].join("|") + ")"
+  )
+
+/**
+ * Test validity of an email.
+ * @param {string} email The tested email.
+ * @return {boolean} True, if and only if email is a valid candidate for email.
+ */
+export function validEmail(email) {
+  return typeof email === "string" && (
+    new RegExp("^" + emailStartRegex.source + emailRemainderRegex.source+ "@" + hostNameRegex.source +  "$")
+    ).test(email);
+}
+ /**
+  * Test validity of a secret.
+  * @param {string} secret The tested secret.
+  * @returns {boolean} True, if and only if the secret starts and ends with punctuation, letter, or digit, contains at least one punctuation character,and letters of both cases. The interior may contain spacer, and has at least 6 and at most 72 characters.
+  */
  export function validSecret(secret) {
    return typeof secret === "string" && secret.length <= 72 && (new RegExp("^[\\p{L}\\p{N}\\p{Pu}][\\s\\p{L}\\p{N}\\p{Pu}]{4,70}[\\p{L}\\p{N}\\p{Pu}]$", "u")).test(secret) && (new RegExp("\\p{Lu}", "u")).test(secret) &&
    (new RegExp("\\p{Ll}", "u")).test(secret) &&
