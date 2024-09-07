@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Add todo</title>
+  <script>
+    var todos = [
+  { name: "Todo UI" },
+  { name: "Todo testing", done: false },
+  { name: "Firebase", done: true }
+
+      ];
+      
+    function createTodoComponent(doc, todo) {
+      const result = doc.createElement("article");
+      result.classList.add("todo");
+      const name = doc.createElement("span");
+      name.textContent = todo.name;
+      result.appendChild(name);
+        const done = doc.createElement("input");
+        done.type = "checkbox";
+        done.checked = todo.done;
+        done.addEventListener("change", (e) => {
+          todo.done = !todo.done;
+        })
+        result.appendChild(done);
+      return result;
+    }
+  </script>
+  <script>
+    
+    function addTodo(event) {
+      event.preventDefault();
+      alert(`Adding todo ${event.target.todo.value} to ${event.target}`);
+      const created = {
+        name: event.target.todo.value,
+        done: event.target.done.checked};
+        todos.push(created);
+      document.getElementById("todo-list").appendChild(createTodoComponent(document, created))
+    };
+    
+    function handleAddTodo(e) {
+      e.preventDefault();
+      console.log("Process add todo");
+      console.table([e.target]);
+    }
+  </script>
+</head>
+
+<body>
+  <script type="module">
+    if (todos && todos.length > 0) {
+      todos.forEach(
+        todo => {
+          console.log(`${todo.name}[${todo.done ? "Done" : "To do"}]`);
+          document.getElementById("todo-list").appendChild(createTodoComponent(document, todo));
+        }
+      )
+    } else {
+      console.log("No todos");
+    }
+  </script>
+  <section id="todo-list"/>
+  <form id="fAddTodo" onSubmit="addTodo">
+    <article>
+      <label for="todo">To do</label>
+      <input name="todo"/>
+      <input name="done" type="checkbox" />
+      <input type="submit" value="Add" onClick="function handler(evt) {
+      alert(`Handling add to do`);
+      }"/>
+    </article>
+    <script>
+      const form = document.getElementById("fAddTodo");
+      form.addEventListener("submit", addTodo);
+    </script>
+  </form>
+</body>
+
+</html>
