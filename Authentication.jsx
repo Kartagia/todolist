@@ -87,6 +87,7 @@ function getAuthData(props) {
   .catch((error) => {
     const errorCode = error.code;
     const errorMessage = error.message;
+    
     reject(error);
   });
         },
@@ -118,7 +119,7 @@ function getAuthData(props) {
       get userInfo() { return auth.userInfo }
     };
   } catch (error) {
-  console.error("Initializing Firebase authentication failed", error);
+  console.error(`Initializing Firebase authentication failed ${error.errorMessage || error.message}`);
   if (props.emailProvider) {
     console.log("Fallback to secondary email provider");
     return {
