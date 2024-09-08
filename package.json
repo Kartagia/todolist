@@ -1,0 +1,25 @@
+{
+  "name": "todolist",
+  "version": "1.0.0",
+  "description": "Todo list library with option to use both web application and node server",
+  "main": "start.js",
+  "scripts": {
+    "test": "mocha --harmonize --recursive"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kartagia/todolist.git"
+  },
+  "keywords": [
+    "todolist",
+    "webapp",
+    "express",
+    "firebase"
+  ],
+  "author": "Antti Kautiainen <antti@kautiainen.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Kartagia/todolist/issues"
+  },
+  "homepage": "https://github.com/Kartagia/todolist#readme"
+}
