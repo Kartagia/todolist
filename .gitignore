@@ -1,2 +1,3 @@
 firebaseInit.mjs
-./cdn_modules
+cdn_modules
+cgi-bin

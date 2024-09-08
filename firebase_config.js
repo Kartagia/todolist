@@ -1,15 +1,8 @@
 import { initializeApp } from 'firebase/app';
+import firebaseConfig from "./cgi-bin/firebase.config.json";
 
 // Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyAV2k4gs7L_6NeXSOzC7BaIt5eCWrftSYI",
-  authDomain: "todo-js-428e3.firebaseapp.com",
-  databaseURL: "https://todo-js-428e3-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "todo-js-428e3",
-  storageBucket: "todo-js-428e3.appspot.com",
-  messagingSenderId: "678632811467",
-  appId: "1:678632811467:web:3e8969025152ad00efa44e"
-};
+const firebaseConfig = {};
 
 const app = initializeApp(firebaseConfig);
 
