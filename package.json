@@ -21,5 +21,12 @@
   "bugs": {
     "url": "https://github.com/Kartagia/todolist/issues"
   },
-  "homepage": "https://github.com/Kartagia/todolist#readme"
+  "homepage": "https://github.com/Kartagia/todolist#readme",
+  "dependencies": {
+  },
+  "devDependencies": {
+    "mocha": "^10.7.3",
+    "chai": "^5.1.1",
+    "chai-as-promised": "^8.0.0"
+  }
 }
