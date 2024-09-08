@@ -5,6 +5,7 @@
 
 import {readFile} from 'node:fs';
 import {initializeApp} from "firebase/app";
+import {getAuth} from "firebase/auth";
 
 /**
  * A configuration error.
@@ -69,4 +70,25 @@ export function readConfig(defaultConfig = {}) {
 export async function getApp(defaultConfig = undefined) {
     const firebaseConfig = await readConfig(defaultConfig);
     return initializeApp(firebaseConfig);
+}
+
+/**
+ * Get the Firebase authetication information.
+ *
+ * @param {import('@firebase/app').FirebaseApp} [app] The firebase application, whose authentication is queried.
+ * Defaults to the default application read from the hidden config file. 
+ * @returns {Promise<import("firebase/auth").Auth>} The promise of the authentication.
+ */
+export async function getAuthentication(app = undefined) {
+    if (app == null) {
+        return getApp().then( app => (getAuth(app)));
+    } else {
+        return new Promise( (resolve, reject) => {
+            try {
+                resolve(getAuth(app));
+            } catch(error) {
+                reject(new ConfigurationError("Firebase authentication error", error));
+            }
+        });
+    }
 }
