@@ -23,6 +23,7 @@
   },
   "homepage": "https://github.com/Kartagia/todolist#readme",
   "dependencies": {
+    "firebase": "^10.13.1"
   },
   "devDependencies": {
     "mocha": "^10.7.3",
