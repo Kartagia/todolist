@@ -40,7 +40,7 @@ export const ip6segmentRegex = new RegExp("(?:[0-9a-fA-F]{1,4})");
 export const simpleIp6regex = new RegExp(
   ip6segmentRegex.source +
   "(?::" + ip6segmentRegex.source + "{1,4}){7}");
-export const ipv6shorthandRegex = new RexExp([0, 1, 2, 3, 4, 5, 6, 7].reduce(
+export const ipv6shorthandRegex = new RegExp([0, 1, 2, 3, 4, 5, 6, 7].reduce(
   (result, prefixSize) => {
     const prefix = (ip6segmentRegex.source + ":").repeat(prefixSize) + (prefixSize == 0 || prefixSize == 7 ? ":" : "") + ("(?::" + ip6segmentRegex.source + `){${prefixSize==0?1:0},${7-prefixSize}}`);
     result.push(prefix);
@@ -54,7 +54,7 @@ export const ip6LocalhostRegex = new RegExp("::1");
  */
 export const ip6regex = new RegExp(
   "\\[" + [
-    simpleIp6Regex.source,
+    simpleIp6regex.source,
     ipv6shorthandRegex.source
     ].join("|") + "\\]"
 );
