@@ -1,1 +1,4 @@
 ./cdn_modules
+*.env
+!*.example.env
+./node_modules
