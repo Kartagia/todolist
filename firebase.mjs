@@ -3,7 +3,7 @@
  * Module initializing the firebase for the app.
  */
 
-import {fs} from '@node/fs';
+import {readFile} from 'node:fs';
 import {initializeApp} from "firebase/app";
 
 /**
@@ -43,7 +43,7 @@ export class ConfigurationError extends Error {
  */
 export function readConfig(defaultConfig = {}) {
     return new Promise( (resolve, reject) => {
-        fs.readFile("./firebase.env", (err, data) => {
+        readFile("./firebase.env", (err, data) => {
             try {
                 if (err) {
                     throw new Error("Could not read the configuration file");
@@ -56,7 +56,7 @@ export function readConfig(defaultConfig = {}) {
             } catch(parseError) {
                 reject(new ConfigurationError("Invalid firebase configuration", parseError));
             }
-        })
+        });
     });
 }
 
