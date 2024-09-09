@@ -50,7 +50,10 @@ async function getSalt(email=null) {
   
 }
 }
-
+/**
+ * Generate next user id.
+ * @returns {string} The generated UUID for an user.
+ */
 function nextUserId() {
   var result = Crypto.randomUUID();
   while (users.find( current => (current.id === result))) {
@@ -65,7 +68,7 @@ function nextUserId() {
  * @property {string} email The user email.
  * @property {string} hashedSecret The hashed secret.
  * @property {string} salt The salt used for hashing.
- * @property {import("./login.js").UserInfo & {id: string}} userInfo The user information.
+ * @property {import("./login.js").UserInfo} userInfo The user information.
  * @property {number} [expireTime] The account expiration time.
  */
 
@@ -95,14 +98,14 @@ getSalt().then(
   });
 
 
-function invalidUserError() {
+export function invalidUserError() {
   return {
   errorCode: 1,
   errorMessage: "Invalid username or password"
 };
 }
 
-function existingAccountError() {
+export function existingAccountError() {
  return {
    errorCode: 2,
    errorMessage: "Account not available"
@@ -124,7 +127,7 @@ function createUser(email, secret, userInfo=null) {
       users.push({
   id,
   email,
-  hashedSecret: hash(secret, salt),
+  hashedSecret,
   salt,
   userInfo: {
     id,
@@ -189,7 +192,7 @@ function createSession(data, expires=null) {
   };
 }
 
-function getExpireTime(source, timeoutMs) {
+function getExpireTime(source, timeoutMs=60*1000) {
   if (source != null) {
     switch (typeof source) {
       case "string":
@@ -214,7 +217,7 @@ function updateSessionData(source, dataAlter) {
 }
 
 function updateSession(user, data) {
-  const userId = users.find(current => (current.userInfo == user));
+  const userId = users.find(current => (equalUser(current, user)));
   if (userId != null && userId.id in sessions) {
     sessions[userId.id] = updateSessionData(sessions[userId.id], ()=>(data));
   }
@@ -237,7 +240,23 @@ function logoutUser(user) {
 var provider = {
   name: "Dummy Email Provider",
   login(email, secret) {
-    return loginUser(email, secret);
+    return loginUser(email, secret).then(
+      (userInfo) => {
+        getSession(userInfo.id).then(
+          (session) => {
+            
+          }, 
+          () => {
+            return createSession(userInfo).then(
+              ()=> {
+                return userInfo;
+              },
+              (err) => {
+                throw Error(`Could not create session`);
+              });
+          })
+      }
+    );
   },
   logout(user) {
     return logoutUser(user);
