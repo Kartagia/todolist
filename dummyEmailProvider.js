@@ -100,16 +100,36 @@ getSalt().then(
 
 export function invalidUserError() {
   return {
+    name: "InvalidUserError",
   errorCode: 1,
-  errorMessage: "Invalid username or password"
+  errorMessage: "Invalid username or password",
+  get message() {
+  return this.errorMessage;
+}, cause: undefined
 };
 }
 
 export function existingAccountError() {
  return {
+   name: "ExistingAccountError",
    errorCode: 2,
-   errorMessage: "Account not available"
+   errorMessage: "Account not available",
+   get message() {
+  return this.errorMessage;
+},cause: undefined
  };
+}
+
+export function sessionCreationError(cause=undefined) {
+  return {
+    name: "SessionCreationError",
+    errorCode: 4,
+    errorMessage: "Could not create session",
+    get message() {
+      return this.errorMessage;
+    },
+    cause
+  };
 }
 
 function createUser(email, secret, userInfo=null) {
@@ -244,7 +264,19 @@ var provider = {
       (userInfo) => {
         getSession(userInfo.id).then(
           (session) => {
-            
+            return updateSession().then(
+              () => {
+                return userInfo;
+              },
+              (error) => {
+                createSession().then(
+                  ()=>{
+                    return userInfo;
+                  },
+                  (err) => {
+                    throw sessionCreationError(err);
+                  })
+              })
           }, 
           () => {
             return createSession(userInfo).then(
@@ -252,7 +284,7 @@ var provider = {
                 return userInfo;
               },
               (err) => {
-                throw Error(`Could not create session`);
+                throw sessionCreationError(err);
               });
           })
       }
