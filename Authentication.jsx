@@ -1,18 +1,18 @@
 import React from 'react';
-import {createContext} from 'react';
-import {initializeApp} from 'firebase/app';
-import {getAuth, createUserWithEmailAndPassword, signInWithEmail, signOut} from 'firebase/auth';
+import { createContext } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmail, signOut } from 'firebase/auth';
 import LoginPage from "./Login.jsx";
 //import { getAuth } from './cdn_modules/firebase@9.23.0/firebase-auth.js';
-import {useState, useEffect, Fragment} from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import ErrorPage from "./Error.jsx";
 
 /**
  * @typedef {import("./login.js").ProviderInfo} ProviderInfo
  */
- /**
-  * @typedef {import("./login.js").RegisterEmail} RegisterEmail
-  */
+/**
+ * @typedef {import("./login.js").RegisterEmail} RegisterEmail
+ */
 
 
 /**
@@ -41,26 +41,65 @@ import ErrorPage from "./Error.jsx";
  * @type {@import('react').Context<AuthData>}
  */
 export const AuthContext = createContext(
-  {
-    provider: undefined,
-    userInfo: null,
-    get loggedIn() {
-      return this.userInfo != null;
+{
+  _provider: undefined,
+  _userInfo: null,
+  get loggedIn() {
+    return this.userInfo != null;
+  },
+  get userInfo() {
+    return this._userInfo;
+  },
+  get provider() {
+    return this._provider;
+  },
+  setUser(userInfo) {
+    alert("Default setUser");
+    if (this.loggedIn && userInfo == null && this.provider && this.provider.logout) {
+      this.provider.logout(this.userInfo);
+    }
+    this._userInfo = userInfo || null;
+  },
+  setProvider(provider) {
+    alert("Default set provider")
+    this._provider = provider;
+  },
+  logout() {
+    this.setUser(null);
+  }
+});
+
+/**
+ * @param {Partial<AuthData>} authInfo The aithentication info.
+ * @returns {AuthData} The authentication data derived from given authentication info.
+ */
+export function createAuth(authInfo) {
+  return {
+    _rep: authInfo,
+    _provider: null,
+    _user: null,
+    get userInfo() {
+      return (this._user != null ? this._user : this._rep.userInfo);
     },
-    setUser(userInfo) {
-      if (this.loggedIn && userInfo == null && this.provider && this.provider.logout) {
-        this.provider.logout(this.userInfo);
-      }
-      this.userInfo = userInfo || null;
+    get provider() {
+      return (this._provider == null ? this._rep.provider : this._provider);
     },
     setProvider(provider) {
-      this.provider = provider;
+      if ("setProvider" in this._rep) {
+        this._rep.setProvider(provider);
+      } else {
+        this._provider = provider;
+      }
     },
-    logout() {
-      this.setUser(null);
+    setUser(user) {
+      if ("setUser" in this._rep) {
+        this._rep.setUser(user)
+      } else {
+        this._user = user;
+      }
     }
-  }
-  );
+  };
+}
 
 /**
  * @typedef {Object} AuthProps
@@ -71,72 +110,84 @@ export const AuthContext = createContext(
 
 function getAuthData(props) {
   if (props.firebaseConfig) {
-  try {
-    const app = initializeApp(props.firebaseConfig);
-    const auth = getAuth(app);
-    return {
-      provider: {
-        name: "Firebase",
-        login: (user, secret) => {
-          signInWithEmailAndPassword(auth, email, secret)
-  .then((userCredential) => {
-    // Signed in 
-    const user = userCredential.user;
-    resolve(user);
-  })
-  .catch((error) => {
-    const errorCode = error.code;
-    const errorMessage = error.message;
-    
-    reject(error);
-  });
+    try {
+      const app = initializeApp(props.firebaseConfig);
+      const auth = getAuth(app);
+      return createAuth({
+        provider: {
+          name: "Firebase",
+          login: (user, secret) => {
+            signInWithEmailAndPassword(auth, email, secret)
+              .then((userCredential) => {
+                // Signed in 
+                const user = userCredential.user;
+                resolve(user);
+              })
+              .catch((error) => {
+                const errorCode = error.code;
+                const errorMessage = error.message;
+
+                reject(error);
+              });
+          },
+          register: (user, secret) => {
+            createUserWithEmailAndPassword(auth, email, secret)
+              .then((userCredential) => {
+                // Signed up 
+                const user = userCredential.user;
+                resolve(user);
+              })
+              .catch((error) => {
+                const errorCode = error.code;
+                const errorMessage = error.message;
+                resolve(error);
+              });
+          },
+          logout: (user) => {
+            return new Promise((resolve, reject) => {
+              signOut(auth).then(() => {
+                // Sign-out successful.
+                resolve();
+              }).catch((error) => {
+                // An error happened.
+                reject(error);
+              });
+            });
+          }
         },
-        register: (user, secret) => {
-          createUserWithEmailAndPassword(auth, email, secret)
-  .then((userCredential) => {
-    // Signed up 
-    const user = userCredential.user;
-    resolve(user);
-  })
-  .catch((error) => {
-    const errorCode = error.code;
-    const errorMessage = error.message;
-    resolve(error);
-  });
-        },
-        logout: (user) => {
-          return new Promise( (resolve, reject) => {
-            signOut(auth).then(() => {
-  // Sign-out successful.
-  resolve();
-}).catch((error) => {
-  // An error happened.
-  reject(error);
-});
-          });
-        }
+        get userInfo() { return auth.userInfo }
+      });
+    } catch (error) {
+      console.error(`Initializing Firebase authentication failed ${error.errorMessage || error.message}`);
+      if (props.emailProvider) {
+        console.log("Fallback to secondary email provider");
+        return createAuth({
+          _provider: props.emailProvider,
+          _userInfo: null,
+          get userInfo() {
+            return this._userInfo;
+          },
+          get provider() {
+            return this._provider;
+          }
+        });
+      }
+    }
+  } else if (props.emailProvider) {
+    const user = props.loggedIn ? props.user : null;
+    return createAuth({
+      _provider: props.emailProvider,
+      _userInfo: null,
+      get userInfo() {
+        return this._userInfo;
       },
-      get userInfo() { return auth.userInfo }
-    };
-  } catch (error) {
-  console.error(`Initializing Firebase authentication failed ${error.errorMessage || error.message}`);
-  if (props.emailProvider) {
-    console.log("Fallback to secondary email provider");
-    return {
-      provider: props.emailProvider,
-      userInfo: null
-    };
+      get provider() {
+        return this._provider;
+      }
+    });
+  } else {
+    return null;
   }
-}
-} else if (props.emailProvider) {
-  const user = props.loggedIn ? props.user : null;
-  return {
-    provider: props.emailProvider,
-    userInfo: user
-  };
-} else {
-  return null;
-}
 }
 
 /**
@@ -144,15 +195,16 @@ function getAuthData(props) {
  */
 export default function Authentication(props) {
   const [authData, setAuthData] = useState(getAuthData(props));
-  const {loggedIn, setLoggedIn} = useState(props.loggedIn ? true : false);
-    
-    const content = authData.loggedIn ?
-    props.children: <LoginPage 
+  const { loggedIn, setLoggedIn } = useState(props.loggedIn ? true : false);
+
+  const content = authData.loggedIn ?
+    props.children : <LoginPage 
       allowEmail={true}
       emailProvider={
         authData.provider
       }
       onLogin={ (userInfo, provider) => {
+      alert(`Authentication onLogin ${userInfo.displayName} via ${provider.name}`);
       setAuthData( (old) => {
         return {
           ...old,
@@ -175,5 +227,5 @@ export default function Authentication(props) {
     
     />;
     return (<AuthContext.Provider value={authData}>{content}</AuthContext.Provider>);
-  
+
 }

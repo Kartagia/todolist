@@ -36,7 +36,7 @@ function hash(secret, salt) {
 async function getSalt(email=null) {
   if (email == null) {
     return new Promise((resolve, reject) => {
-      bcrypt.getSalt(10, (err, salt) => {
+      bcrypt.genSalt(10, (err, salt) => {
         if (err) {
           reject(err);
         } else {
@@ -46,7 +46,7 @@ async function getSalt(email=null) {
     })
   } else {
     const found = users.find(current => (current.email == email));
-    return found ? found.salt : null;
+    return found ? Promise.resolve(found.salt) : Promise.reject(new NotFoundException("The user does not exist"));
   
 }
 }
@@ -65,7 +65,7 @@ function nextUserId() {
  * @property {string} email The user email.
  * @property {string} hashedSecret The hashed secret.
  * @property {string} salt The salt used for hashing.
- * @property {import("./Authentication.jsx").UserInfo & {id: string}} userInfo The user information.
+ * @property {import("./login.js").UserInfo & {id: string}} userInfo The user information.
  * @property {number} [expireTime] The account expiration time.
  */
 
@@ -73,6 +73,27 @@ function nextUserId() {
  * @type {UserData}
  */
 var users = [];
+
+getSalt().then(
+  salt => {
+    alert(`Salt ${salt}`)
+    return hash("F00baru!", salt).then(
+      hashedSecret => {
+        users.push({
+          id: "admin-1",
+          email: "antti@kautiainen.com",
+          hashedSecret,
+          salt,
+          userInfo: {
+            id: "2abb1b43-859c-4e84-b306-ccc945bf2e9d",
+            displayName: "A. Admin"
+          }
+        });
+      });
+  }).catch( (error) => {
+    console.error(`Adding user failed due ${error.name} ${error.message}`)
+  });
+
 
 function invalidUserError() {
   return {
@@ -214,6 +235,7 @@ function logoutUser(user) {
  * @type {import("./login.js").EmailProvideraaInfo}
  */
 var provider = {
+  name: "Dummy Email Provider",
   login(email, secret) {
     return loginUser(email, secret);
   },

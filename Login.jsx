@@ -44,13 +44,17 @@ import {validEmail} from "./hostname.js";
 export function EmailLogin(props) {
   const auth = useContext(AuthContext);
   const [error, setError] = useState(props.errors);
+  const [provider, setProvider] = useState(props.provider);
   const userField = useRef();
   const secretField = useRef();
   const performLogin = (userInfo, provider, handler) => {
+    alert(`Performing login ${userInfo.displayName} with ${provider.name}`)
     auth.setProvider(provider);
     auth.setUser(userInfo);
     if (props.onLogin) {
+      console.log("informing listener")
       props.onLogin(userInfo, provider)
+      console.log("informed listener")
     }
     handler(null);
   }
@@ -61,10 +65,10 @@ export function EmailLogin(props) {
           if (auth.loggedIn && props.onLogout) {
             props.onLogout(auth.userInfo, auth.provider).then(
               () => {
-                performLogin(user, props.provider, handler);
-              })
+                performLogin(userInfo, props.provider, handler);
+              }, handler(error))
           } else {
-            performLogin(user, props.provider, handler);
+            performLogin(userInfo, props.provider, handler);
 
           }
         },

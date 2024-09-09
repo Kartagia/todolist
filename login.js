@@ -15,6 +15,7 @@
 /**
  * The user information.
  * @typedef {Object} UserInfo
+ * @property {Readonly<string>} id The user identifier.
  * @property {Readonly<string>} displayName The name shown.
  * @property {Readonly<string>} [image] The user image url.
  */
