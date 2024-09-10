@@ -43,9 +43,10 @@ export class Exception extends Error {
 
 /**
  * Createa a not found error.
- * @template [CAUSE=Error] The cause of the error.
  * @template [DETAIL=void] The details of the error.
  * The error indicating that something was not found.
+ * @template [CAUSE=Error] The cause of the error.
+ * @extends {Exception<CAUSE, DETAIL>}
  */
 export class NotFoundError extends Exception {
     /**
@@ -71,7 +72,7 @@ export class NotFoundError extends Exception {
  * An exception indicating a parameter was invalid.
  * @template VALUE The value type of the invalid parameter.
  * @template [CAUSE=any] The cause of the exception.
- * @extends {Exception<ParameterDefinition<VALUE>>}
+ * @extends {Exception<any, ParameterDefinition<VALUE>>}
  */
 export class InvalidParameterException extends Exception {
 

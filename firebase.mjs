@@ -6,12 +6,12 @@
 import {readFile} from 'node:fs';
 import {initializeApp} from "firebase/app";
 import {createUserWithEmailAndPassword, getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut} from "firebase/auth";
-import { setDefaultResultOrder } from 'node:dns';
+import { Exception } from './login.mjs';
 
 /**
  * A configuration error.
  */
-export class ConfigurationError extends Error {
+export class ConfigurationError extends Exception {
 
     /**
      * Create new configuration error.
@@ -120,63 +120,62 @@ export async function emailLogin(auth, email, secret) {
 
 /**
  * Signout the current user.
- * @param {*} auth The firebase authentication.
- * @param {*} user The signed out user.
+ * @param {import('@firebase/auth').Auth} auth The firebase authentication.
+ * @param {UserInfo} user The signed out user.
  * @returns {Promise<void>} The promise of completion.
  */
 export async function logout(auth) {
     return signOut(auth);
 }
 
-/**
- * The user information.
- * @typedef {Object} UserInfo
- * @property {string} displayName The display name.
- * @property {string|URL} [image] The user image.
- * @property {string} id The identifier of the user.
- */
 
 /**
- *The pvovider information.
- * 
- * @typedef {Object} ProviderInfo
- * @todo Replace with import from login.js
- * @property {Readonly<string>} name The provider name.
- * @property {(email: string, email: secret) => Promise<UserInfo>} login Login with the user.
- * @property {(email: string, email: secret) => Promise<UserInfo>} register Register the user.
- * @property {(email: string) => Promise<void>} logout Logout the user.
+ * Create the user information from the firebase user.
+ * @param {import('@firebase/auth').User} user The firebase user.
+ * @returns {Promise<import('./login.mjs').EmailUserInfo>} The user information representation from given firebase user.
  */
+export function createUserInfo(user) {
+
+    return Promise.resolve( /** @type {EmailUserInfo} */ {
+        get displayName() {
+            return user.displayName;
+        },
+        get image() {
+            return user.photoURL;
+        },
+        get id() {
+            return user.uid;
+        },
+        get email() {
+            return user.email || undefined;
+        },
+        get verified() {
+            return user.emailVerified;
+        }
+    });
+
+}
 
 /**
  * The firebase provider information.
  *
- * @typedef {ProviderInfo & { firebaseAuth: Readonly<import('@firebase/auth').Auth> }} FIrebaseProviderInfo
+ * @typedef {import('./login.mjs').EmailProviderInfo & { firebaseAuth: Readonly<import('@firebase/auth').Auth> }} FirebaseProviderInfo
  */
 
 /**
- * Get the user information for the firebase user.
- * @param {import('@firebase/auth').User} firebaseUser The firebase user.
- * @returns {UserInfo} The user information of the given firebase user.
+ * Logout user.
+ * @param {import("./login.mjs").UserInfo} user The user information.
+ * @return {Promise<void>} The promise of logout.
  */
-export function createUserInfo(firebaseUser) {
-    return {
-        get id() {
-            return firebaseUser.id
-        },
-        get displayName() {
-            return firebaseUser.displayName;
-        },
-        get image() {
-            return firebaseUser.image;
-        }
-    };
+export function logoutUser(auth) {
+    return logout(auth);
 }
 
 /**
  * Get the firebase provider.
  * 
- * @param {import('@firebase/auth').Auth} auth 
- * @returns {ProviderInfo} The providers of the firebase user services.
+ * @param {import('@firebase/auth').Auth} auth The firebase authentication.
+ * @returns {FirebaseProviderInfo} The providers of the firebase user services.
  */
 export function getFirebaseProvider(auth) {
 
@@ -187,12 +186,19 @@ export function getFirebaseProvider(auth) {
         get firebaseAuth() {
             return auth;
         },
+
+        /**
+         * @inheritdoc
+         */
         get name() { return "Firebase"; },
         /**
          * The logged in user.
          */
         _user: null,
-        login(user, secret) {
+        /**
+         * @inheritdoc
+         */
+        async login(user, secret) {
             return emailLogin(this.getFirebaseAuth(), user, secret).then( 
                 (userInfo) => {
                     const result = createUserInfo(userInfo);
@@ -201,19 +207,21 @@ export function getFirebaseProvider(auth) {
                 }
             );
         },
-        register(user, secret) {
-            return createUser(this.getFirebaseAuth(), user, secret);
+        /**
+         * @inheritdoc
+         */
+        async register(user, secret) {
+            return createUser(this.getFirebaseAuth(), user, secret).then(
+                user => (createUserInfo(user))
+            );
         },
         /**
-         * Logout user.
-         * 
-         * @param {UserInfo} user The logged out user.
-         * @returns {Promise<void>} Promise of the loggingout.
+         * @inheritdoc
          */
-        logout(user) {
+        async logout(user) {
             return new Promise( (resolve, reject) => {
                 if (this._user === user) {
-                    return logoutUser();
+                    return logoutUser(this.getFirebaseAuth);
                 } else {
                     reject(new Error("User not logged in"));
                 }
