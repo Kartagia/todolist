@@ -61,7 +61,7 @@ export function readConfig(defaultConfig = {}) {
                 }
                 resolve({...defaultConfig, ...config});
             } catch(parseError) {
-                reject(new ConfigurationError("Invalid firebase configuration", parseError));
+                reject(new ConfigurationError("firebase.env", undefined, "Invalid firebase configuration", parseError));
             }
         });
     });
@@ -93,7 +93,7 @@ export async function getAuthentication(app = undefined) {
             try {
                 resolve(getAuth(app));
             } catch(error) {
-                reject(new ConfigurationError("Firebase authentication error", error));
+                reject(new ConfigurationError("firebase", undefined, "Could not get Firebase authentication", error));
             }
         });
     }
