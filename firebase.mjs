@@ -10,16 +10,21 @@ import { Exception } from './login.mjs';
 
 /**
  * A configuration error.
+ * @template [VALUE=any] The details of invalid configuration
+ * @tempalte [CAUSE=any] The cause type of the exception.
+ * @extends {import('./login.mjs').Exception<CAUSE, import('./login.mjs').ParameterDefinition<VALUE>>}
  */
 export class ConfigurationError extends Exception {
 
     /**
      * Create new configuration error.
+     * @param {string} configurationName The name of the invalid configuration.
+     * @param {VALUE} [configurationValue] The invalid configuration value.
      * @param {string} [message] The error message. 
-     * @param {*} [cause] The cause of the exception. 
+     * @param {any} [cause] The cause of the exception. 
      */
-    constructor(message = null, cause = null) {
-        super(message, cause);
+    constructor(configurationName, configurationValue = undefined, message = null, cause = null) {
+        super(message, cause, {parameterName: configurationName, value: configurationValue});
         this.name = this.constructor.name;
     }
 }
