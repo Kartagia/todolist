@@ -5,7 +5,7 @@
 
 import {readFile} from 'node:fs';
 import {initializeApp} from "firebase/app";
-import {createUserWithEmailAndPassword, getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut} from "firebase/auth";
+import {createUserWithEmailAndPassword, getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile} from "firebase/auth";
 import { Exception } from './login.mjs';
 
 /**
@@ -261,4 +261,37 @@ export function getAuthChangeListener(auth, setUser, setProvider = null) {
         }
     });
     });
+}
+
+/**
+ * Update the current user email.
+ * 
+ * @param {string} newEmail The new email address.
+ * @returns {Promise<void>} The promise of completion.
+ */
+export function updateCurrentUserEmail(newEmail) {
+    var auth; 
+    try {
+        auth = getAuth();
+    } catch (error) {
+        throw new ConfigurationError("firebase authentication", undefined, "No firebase authentication available", error);
+    }
+    return updateProfile(auth.currentUser, { email: newEmail, phtoURL: auth.currentUser.photoURL});
+}
+
+/**
+ * Update the current user photo URL.
+ *
+ * @param {string} newPhotoURL The new photo URL
+ * @returns {Promise<void>} The promise of update.
+ */
+export function updateCurrentUserPhoto(newPhotoURL) {
+    var auth; 
+    try {
+        auth = getAuth();
+    } catch (error) {
+        throw new ConfigurationError("firebase authentication", undefined, "No firebase authentication available", error);
+    }
+    return updateProfile(auth.currentUser, { email: auth.currentUser.email, phtoURL: newPhotoURL});
+
 }
