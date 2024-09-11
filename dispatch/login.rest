@@ -1,0 +1,10 @@
+## Login user.
+POST http://localhost:6001/api/login
+content-type: application/application/json
+
+{
+    "user": "antti@kautiainen.com",
+    "secret": "F00baruMaru!"
+}
+
+## 
