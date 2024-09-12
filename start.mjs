@@ -5,11 +5,10 @@
 
 import express from 'express';
 import { readFile } from 'fs/promises';
-import apiService from './apiServices.mjs';
+import apiService from './dummyApiService.mjs';
 import { AccessForbiddenException, HttpStatusException } from './errors.mjs';
-import { resourceLimits } from 'worker_threads';
 import cookieParser from 'cookie-parser';
-import { rejects } from 'assert';
+import { rmSync } from 'fs';
 
 const port = process.env.PORT || 6001;
 const host = process.env.HOST || "localhost";
@@ -95,23 +94,83 @@ app.route("/api/todo/:id")
     }
 })
 .post(function (req, res) {
-
+    res.status(501).send(`<h1>Not Implemented</h1><p>Creating new todo not implemented</p>`)
 })
 .put(function (req, res) {
-
+    res.status(501).send(`<h1>Not Implemented</h1><p>Updating existing todo not implemented</p>`)
 })
 .delete(function (req, res) {
-
+    res.status(501).send(`<h1>Not Implemented</h1><p>Deleteing existing todo not implemented</p>`)
 });
 
 app.get("/api/todo/:id", (req, res) => {
     // The api todo list acquisition.
-    
+    const todoId = req.params.id;
+    const sessionId = req.signedCookies.sessionId;
+    const userId = req.signedCookies.userId;
+    apiService.getTodo(sessionId, userId, todoId).then(
+        (todo) => {
+            res.json(todo);
+        }, 
+        (error) => {
+            res.status(error.statusCode ?? 400).json(error);
+        }
+    )
 });
 
-app.get("/api/login", (req, res) => {
+app.post("/api/login", (req, res) => {
     // The API login.
-    
+    const user = req.body?.user;
+    const secret = req.body?.secret;
+    if (user == null) {
+        res.status(400).json("Bad request");
+        return;
+    }
+    if (secret == null) {
+        res.status(400).json("Bad request");
+        return;
+    }
+    const sessionId = req.signedCookies.sessionId;
+    const userId = req.signedCookies.userId;
+    apiService.login(user, secret).then(
+        (sessionInfo) => {
+            if (sessionId != null) {
+                // Close session before sending reply.
+                apiService.closeSession(sessionId).then( () => {
+                    const cookieOptions = {
+                        expires: new Date(sessionInfo.expires),
+                        signed: true,
+                        path: "/api"
+                    };
+                    res.signedCookie("userId", sessionInfo.userId, cookieOptions);
+                    res.signedCookie("sessionId", sessionInfo.sessionId, cookieOptions);
+                    res.json(sessionInfo.content);
+                }, (err) => {
+                    const cookieOptions = {
+                        expires: new Date(sessionInfo.expires),
+                        signed: true,
+                        path: "/api"
+                    };
+                    res.signedCookie("userId", sessionInfo.userId, cookieOptions);
+                    res.signedCookie("sessionId", sessionInfo.sessionId, cookieOptions);
+                    res.json(sessionInfo.content);                    
+                });
+            } else {
+                // No session to close.
+                const cookieOptions = {
+                    expires: new Date(sessionInfo.expires),
+                    signed: true,
+                    path: "/api"
+                };
+                res.signedCookie("userId", sessionInfo.userId, cookieOptions);
+                res.signedCookie("sessionId", sessionInfo.sessionId, cookieOptions);
+                res.json(sessionInfo.content);
+            }
+        }, 
+        (error) => {
+            res.status(error.statusCode ?? 400).json(error);
+        }
+    )  
 });
 
 const serverHook = app.listen(port, host, () => {
