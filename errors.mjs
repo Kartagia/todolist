@@ -43,6 +43,16 @@ export class Exception extends Error {
 
 }
 
+/**
+ * The default messages of the HTTP status codes.
+ * 
+ * - If the value is string, the code is standard code.
+ * - If the value is a record to a string, the value is mapping from context to message.
+ * - If the value is a record to a string array, the context has more than one message for same
+ * code. The first value is the default message, but other message may be used.
+ * 
+ * @type {Record<number, string|Record<string, string|string[]>>}
+ */
 const httpStatusCodes = {
     // Information
     100: "Continue",
