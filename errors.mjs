@@ -29,7 +29,7 @@ export class Exception extends Error {
     constructor(message = undefined, cause = undefined, detail = undefined) {
         super(message, cause);
         this.name = this.constructor.name;
-        this.detail = detail;
+        this.#detail = detail;
     }
 
     /**
