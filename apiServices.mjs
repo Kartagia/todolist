@@ -181,6 +181,20 @@ export function createCompleteAllTodo(name, completedBy = [], prohibitedBy = [])
  * a new user.
  * @property {Getter<string, SessionData>} createSession Create a new session for an user.
  * @property {UpdateSession<UserInfo>} updateSession Update an existing session.
+ * @property {(sessionId: string) => Promise<void>} closeSession Close an existing session.
+ */
+
+/**
+ * The crypt service options.
+ * @typedef {Object} CryptServiceOptions
+ * @property {Partial<CryptOptions>} cryptOptions The crypt options for the secrets.
+ */
+
+/**
+ * The Api service construction parameters.
+ * 
+ * @template CONTENT The api service content type.
+ * @typedef {Partial<ApiService<CONTENT>> & Partial<CryptServiceOptions>} ApiServiceParams
  */
 
 /**
@@ -225,7 +239,7 @@ export class InMemoryApiService {
      * The session timeout in millisecond.
      * @type {number}
      */
-    #sessionTimeOut = 30*60*1000*1000;
+    #sessionTimeOut = 30*60*1000;
 
     /**
      * Create hashed secret.
@@ -323,14 +337,15 @@ export class InMemoryApiService {
     }
 
     /**
-     * 
-     * @param {Partial<CryptOptions>} param The parameters.
+     * Check the crypt options. 
+     * @param {Partial<CryptOptions>} cryptOptions The parameters.
+     * @param {CryptOptions} [defaults] The default values of the crypt options.
      * @return {CryptOptions} The crypto options derived from the paraemters.
      * @throws {InvalidParameterException<string>} The string valued parameter is invalid.
      * @throws {InvalidParameterException<number>} The number valued parameter is invalid.
      * @throws {InvalidParameterException<any>} The invalid value parameter is invalid.
      */
-    checkCryptOptions(param, defaults=undefined) {
+    checkCryptOptions(cryptOptions, defaults=undefined) {
         const result = {
             algorithm: "sha512",
             length: 64,
@@ -341,26 +356,26 @@ export class InMemoryApiService {
             ["length", (value) => (typeof value === "number" && Number.isSafeInteger(value) && value > 0), result.length],
             ["method", (value) => (typeof value === "string" && value.length > 0 ), result.method]
         ].forEach( ([property, validator, defaultValue]) => {
-            if (property in param && !validator(param[property])) {
+            if (property in cryptOptions && !validator(cryptOptions[property])) {
                 throw new InvalidParameterException(property, undefined, "Invalid crypto property value");
-            } else if (property in param) {
+            } else if (property in cryptOptions) {
                 result[property] = value;
             } else {
                 result[property] = defaultValue;
             }
         });
         [
-            ["saltLength", (result, value) => (typeof value === "number"), (result, value = undefined) => (value == null ? result.length / 2 : value)],
+            ["saltLength", (result, value) => (typeof value === "number" && Number.isSafeInteger(value) && value > 0), (result, value = undefined) => (value == null ? result.length / 2 : value)],
             ["rounds", (result, value) => (typeof value === "number" && Number.isSafeInteger(value) && value > 0), (result, value = undefined) => (value == null ? 1 : value)]
         ].forEach( ([property, validator, valueFn]) => {
-            if (property in param) {
-                if (validator(result, param[property])) {
-                    result[property] = valueFn(result, value);
+            if (property in cryptOptions) {
+                if (validator(result, cryptOptions[property])) {
+                    result[property] = valueFn(result, cryptOptions[property]);
                 } else {
-                    throw new InvalidParameterException(property, param[property], "Invalid crypto property value");
+                    throw new InvalidParameterException(property, cryptOptions[property], "Invalid crypto property value");
                 }
             } else {
-                result[property] = valueFn(result, param[property]);
+                result[property] = valueFn(result, cryptOptions[property]);
             }
         });
     }
@@ -384,7 +399,7 @@ export class InMemoryApiService {
 
     /**
      * Create a new api service.
-     * @param {Partial<ApiService<CONTENT>> & Partial<CryptOptions>} param 
+     * @param {ApiServiceParams} param 
      */
     constructor(param) {
         if ("content" in param) {
@@ -399,7 +414,9 @@ export class InMemoryApiService {
         if ("sessionTimeout" in param) {
             this.#sessionTimeOut = this.checkSessionTimeOut(param.sessionTimeout);
         }
-        this.#cryptOptions = this.checkCryptOptions(param, this.#cryptOptions);
+        if ("cryptOptions" in param) {
+            this.#cryptOptions = this.checkCryptOptions(param.cryptOptions, this.#cryptOptions);
+        }
     }
   
     /**
@@ -416,7 +433,7 @@ export class InMemoryApiService {
                 while (sessionId in this.#sessions) {
 
                 }
-                secret = crypto.getRandomValues();
+                secret = crypto.getRandomValue();
                 this.#sessions[sessionId] = {
                     userId,
                     sessionId: id,
@@ -442,33 +459,46 @@ export class InMemoryApiService {
     updateSession(sessionId, userId) {
 
     }
+
+    /**
+     * Close an existing session.
+     * 
+     * @param {string} sessionId The session identifier.
+     * @param {number} [closeTime] The time of closing. Defaults to the current moment.
+     * @returns {Promise<void>} THe promise of completion.
+     */
+    async closeSession(sessionId, closeTime = undefined) {
+        const now = Date.now();
+        if (closeTime == null) {
+            closeTime = now;
+        } else if (closeTime > now) {
+            return Promise.reject(new InvalidParameterException("closeTime", closeTime, "Close time in future"));
+        } 
+        return this.checkSessionId(sessionId).then(
+            (id) => {
+                if (id in this.#sessions) {
+                    const session = this.#sessions[id];
+                    if (session.expires == null || session.expires > now) {
+                        // The session is active. 
+                        this.#sessions[id] = {...session, expires: now};
+                    }
+                    return;
+                } else {
+                    throw new NotFoundException("Session not found");
+                }
+            }
+        );
+    }
 }
 
 /**
- * @type {ApiService<Todo>}
+ * Create a new service.
+ *
+ * @template [CONTENT=any] The content type of the service.
+ * @param {ApiServiceParams<CONTENT>} param 
+ * @returns 
  */
-const apiService = new ApiService({
-    /**
-     * The mapping from user identifiers to the todos of the user.
-     * @type {Record<string, TodoData>}
-     */
-    content: {},
-    /**
-     * The users of the api.
-     * @type {Record<string, UserData>}
-     */
-    users: {},
-    /**
-     * The active sessions.
-     * @type {Record<string, SessionData>}
-     */
-    sessions: {},
-    hashOptions: {
-        rounds: 200000,
-        length: 64,
-        algorithm: "sha512",
-        method: "pbkdf2"
-    },
-    sessionTimeout: 30*60*1000
-});
+export default function createApiService(param) {
+    return new InMemoryApiService(param);
+}
 
