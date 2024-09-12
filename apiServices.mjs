@@ -88,31 +88,51 @@ export function createCompleteAllTodo(name, completedBy = [], prohibitedBy = [])
  */
 
 /**
+ * The user information structure.
+ * @template [DETAIL=void] The detail type of the user information.
+ * @typedef {Object} UserInfo
+ * @property {string} displayName The display name of the user.
+ * @property {string} [image] The image URL.
+ * @property {string} [email] The email displayed to other users.
+ * @property {boolean} [emailVerified] Has the displayed email been verified.
+ * @property {DETAIL} [details] The details of the user information.
+ */
+
+/**
  * The user data.
+ * @template [DETAIL=void] The user detail.
  * @typedef {Object} UserData
  * @property {string} userName the user name.
  * @property {string} hashedSecret The hashed secret.
  * @property {string} salt The salt used to hash the secret.
  * @property {string} id The uuid of the user.
+ * @property {UserInfo<DETAIL>} userInfo The user detail.
+ * @property {boolean} [emailVerified=false] Has the user email been verified.
  */
 
 /**
  * Session data.
+ * @template DETAIL The session detail
+ * @template USER_DETAIL The user detail.
  * @typedef {Object} SessionData
  * @property {string} id The session identifier.
  * @property {string} userId The session owner identifier.
  * @property {number} created The creation UTC timestamp.
  * @property {number|null} expires The expiration UTC timestamp. If null, the session will not expire.
  * @property {string} hashedSecret The hashed secret.
+ * @property {UserInfo<USER_DETAIL>} userInfo The user information of the current user.
+ * @property {DETAIL} [sessionDetail] The optional session detail. 
  */
 
 /**
  * Log in an user.
  *
+ * @template [DETAIL=void] The session detail type.
+ * @template [USER_DETAIL=void] The user detail type.
  * @callback Login
  * @param {string} user The user name.
  * @param {string} secret The secret.
- * @returns {Promise<SessionData>} The promise of the session data.
+ * @returns {Promise<SessionData<DETAIL, USER_DETAIL>>} The promise of the session data.
  * @throws {AccessForbiddenException<string>} The user cannot log in.
  * @throws {InvalidParameterException<string>} Either the user or secret was invalid.
  */
@@ -120,10 +140,11 @@ export function createCompleteAllTodo(name, completedBy = [], prohibitedBy = [])
 /**
  * Create a new user.
  * 
+ * @template [DETAIL=void] The detail type of the user information.
  * @callback CreateUser
  * @param {string} user The user name.
  * @param {string} secret The user secret.
- * @param {Partial<UserInfo>} [details] The user details.
+ * @param {Partial<UserInfo<DETAIL>>} [details] The user details.
  * @returns {Promise<UserInfo>} The promise of the user information.
  * @throws {InvalidParameterException<string>} The user or secret was invalid.
  * @throws {InvalidParameterException<Partial<UserInfo>>} The user information was invalid.
@@ -174,13 +195,16 @@ export function createCompleteAllTodo(name, completedBy = [], prohibitedBy = [])
 
 /**
  * @template [CONTENT=any] The API service content type.
+ * @template [SESSION_DETAIL=void] The session detail.
+ * @template [USER_DETAIL=void] The user detail.
  * @typedef {Object} ApiService
- * @property {Readonly<Getter<CONTENT>>} getContent Get content of the API service. 
- * @property {Login} login Log in an existing user.
- * @property {CreateUser} register Register
+ * @property {Readonly<Getter<string,CONTENT>>} getContent Get content of the API service.
+ * @property {Readonly<Setter<string,CONTENT>>} [setContent] The optional replacer of the content. 
+ * @property {Login<SESSION_DETAIL, USER_DETAIL>} login Log in an existing user.
+ * @property {CreateUser<USER_DETAIL>} register Register
  * a new user.
- * @property {Getter<string, SessionData>} createSession Create a new session for an user.
- * @property {UpdateSession<UserInfo>} updateSession Update an existing session.
+ * @property {Getter<string, SessionData<SESSION_DETAIL, USER_DETAIL>>} createSession Create a new session for an user.
+ * @property {UpdateSession<UserInfo<USER_DETAIL>>} updateSession Update an existing session.
  * @property {(sessionId: string) => Promise<void>} closeSession Close an existing session.
  */
 
@@ -194,11 +218,33 @@ export function createCompleteAllTodo(name, completedBy = [], prohibitedBy = [])
  * The Api service construction parameters.
  * 
  * @template CONTENT The api service content type.
- * @typedef {Partial<ApiService<CONTENT>> & Partial<CryptServiceOptions>} ApiServiceParams
+ * @template [SESSION_DETAIL=void] The session detail.
+ * @template [USER_DETAIL=void] The user detail.
+ * @typedef {Partial<ApiService<CONTENT, SESSION_DETAIL, USER_DETAIL>> & Partial<CryptServiceOptions>} ApiServiceParams
  */
 
 /**
+ * The bad request excpetion.
+ * @template [CAUSE=any] The cause of the exception.
+ * @extends {HttpStatusException<CAUSE>}
+ */
+export class BadRequestException extends HttpStatusException {
+
+    /**
+     * Create a new bad request exception.
+     *
+     * @param {string} [message] The message of the exception.
+     * @param {CAUSE} [cause] The cause of the exception. 
+     */
+    constructor(message = undefined, cause = undefined) {
+        super(message, cause, 400);
+    }
+}
+
+/**
  * @template CONTENT The api service content type.
+ * @template [SESSION_DETAIL=void] The session detail.
+ * @template [USER_DETAIL=UserInfo] The user detail.
  * A class implementing an api service caching the content into memory.
  */
 export class InMemoryApiService {
@@ -212,14 +258,14 @@ export class InMemoryApiService {
     /**
      * The registered users of the api service.
      * 
-     * @type {Record<string, UserData>}
+     * @type {Record<string, UserData<USER_DETAIL>>}
      */
     #users = {};
 
     /**
      * The valid authenticated sessions of the api service.
      * 
-     * @type {Record<string, SessionData>}
+     * @type {Record<string, SessionData<SESSION_DETAIL, USER_DETAIL>>}
      */
     #sessions = {};
 
@@ -239,12 +285,12 @@ export class InMemoryApiService {
      * The session timeout in millisecond.
      * @type {number}
      */
-    #sessionTimeOut = 30*60*1000;
+    #sessionTimeOut = 30 * 60 * 1000;
 
     /**
      * Create hashed secret.
      * @param {string} password The hashed password.
-     * @returns {HashedPassword}
+     * @returns {Promise<HashedPassword>}
      */
     createHashedSecret(password) {
         return new Promise((resolve, reject) => {
@@ -268,17 +314,25 @@ export class InMemoryApiService {
         })
     }
 
+    /**
+     * Check validity of the password.
+     * @param {UserInfo} user The user.
+     * @param {string} secret The secret.
+     * @returns {Promise<UserInfo<USER_DETAIL>>} The promise of a valid password.
+     * @throws {AccessForbiddenException} The user invalid password.
+     * @throws {NotFoundException} The user does not exist.
+     */
     validPassword(user, secret) {
-        const userData = this.#users.find( current => (current.user === user));
+        const userData = this.#users.find(current => (current.user === user));
         if (userData == null) {
-            return Promise.reject(new AccessForbiddenException("Invalid username or passwrod"));
+            return Promise.reject(new NotFoundException("Invalid user"));
         } else {
             return this.hashedSecret(user, secret).then(
                 (hashedSecret) => {
                     if (userData.hashedSecret === hashedSecret) {
                         return userData.userInfo;
                     } else {
-                        throw new AccessForbiddenException("Invalid user name or password");
+                        throw new AccessForbiddenException("Invalid password");
                     }
                 });
         }
@@ -307,7 +361,7 @@ export class InMemoryApiService {
                 reject(new AccessForbiddenException("User cannot access the content"));
             } else {
                 const user = this.#users[userId];
-                if (sessionId in this.#sessions && (this.#sessions[sessionId].expires == null || this.#sessions[sessionId].expires > now) ) {
+                if (sessionId in this.#sessions && (this.#sessions[sessionId].expires == null || this.#sessions[sessionId].expires > now)) {
                     // The session is valid.
                     const session = this.#sessions[sessionId];
                     if (session.userId === userId) {
@@ -345,7 +399,7 @@ export class InMemoryApiService {
      * @throws {InvalidParameterException<number>} The number valued parameter is invalid.
      * @throws {InvalidParameterException<any>} The invalid value parameter is invalid.
      */
-    checkCryptOptions(cryptOptions, defaults=undefined) {
+    checkCryptOptions(cryptOptions, defaults = undefined) {
         const result = {
             algorithm: "sha512",
             length: 64,
@@ -354,8 +408,8 @@ export class InMemoryApiService {
         [
             ["algorithm", (value) => (typeof value === "string" && value.length > 0), result.algorithm],
             ["length", (value) => (typeof value === "number" && Number.isSafeInteger(value) && value > 0), result.length],
-            ["method", (value) => (typeof value === "string" && value.length > 0 ), result.method]
-        ].forEach( ([property, validator, defaultValue]) => {
+            ["method", (value) => (typeof value === "string" && value.length > 0), result.method]
+        ].forEach(([property, validator, defaultValue]) => {
             if (property in cryptOptions && !validator(cryptOptions[property])) {
                 throw new InvalidParameterException(property, undefined, "Invalid crypto property value");
             } else if (property in cryptOptions) {
@@ -367,7 +421,7 @@ export class InMemoryApiService {
         [
             ["saltLength", (result, value) => (typeof value === "number" && Number.isSafeInteger(value) && value > 0), (result, value = undefined) => (value == null ? result.length / 2 : value)],
             ["rounds", (result, value) => (typeof value === "number" && Number.isSafeInteger(value) && value > 0), (result, value = undefined) => (value == null ? 1 : value)]
-        ].forEach( ([property, validator, valueFn]) => {
+        ].forEach(([property, validator, valueFn]) => {
             if (property in cryptOptions) {
                 if (validator(result, cryptOptions[property])) {
                     result[property] = valueFn(result, cryptOptions[property]);
@@ -403,13 +457,13 @@ export class InMemoryApiService {
      */
     constructor(param) {
         if ("content" in param) {
-            this.#content = {...param.content};
+            this.#content = { ...param.content };
         }
         if ("users" in param) {
-            this.#users = {...param.users};
+            this.#users = { ...param.users };
         }
         if ("sessions" in param) {
-            this.#sessions = {...param.sessions};
+            this.#sessions = { ...param.sessions };
         }
         if ("sessionTimeout" in param) {
             this.#sessionTimeOut = this.checkSessionTimeOut(param.sessionTimeout);
@@ -418,7 +472,7 @@ export class InMemoryApiService {
             this.#cryptOptions = this.checkCryptOptions(param.cryptOptions, this.#cryptOptions);
         }
     }
-  
+
     /**
      * Create a new session.
      * 
@@ -427,7 +481,7 @@ export class InMemoryApiService {
      */
     createSession(userId) {
         const now = Date.now();
-        return new Promise( (resolve, reject) =>  {
+        return new Promise((resolve, reject) => {
             if (userId in this.#users) {
                 var sessionId = crypto.randomUUID();
                 while (sessionId in this.#sessions) {
@@ -454,10 +508,33 @@ export class InMemoryApiService {
      * 
      * @param {string} sessionId The session identifier.
      * @param {string} userId The user identifier of the session user.
-     * @returns {Promise<SessionData>} The promise of the updated session data.
+     * @param {CONTENT} [userInfo] The new content of the session.
+     * @returns {Promise<SessionData<CONTENT>>} The promise of the updated session data.
      */
-    updateSession(sessionId, userId) {
-
+    updateSession(sessionId, userId, userInfo = undefined) {
+        const now = Date.now();
+        return Promise((resolve, reject) => {
+            if (sessionId in this.#sessions) {
+                const session = this.#sessions[sessionId];
+                if (session.userId == userId) {
+                    if (session.expires == null || session.expires > now) {
+                        this.#sessions[sessionId] = {
+                            ...session,
+                            updated: now,
+                            expires: (this.sessionTimeOut == null ? null : now + this.sessionTimeOut),
+                            userInfo: (userInfo === undefined ? session.userInfo : userInfo)
+                        };
+                        respond(this.#sessions[sessionId]);
+                    } else {
+                        reject(new AuthenticationRequiredException("Session has expired"));
+                    }
+                } else {
+                    reject(new BadRequestException("Bad request"));
+                }
+            } else {
+                reject(new NotFoundException("Session not found"));
+            }
+        });
     }
 
     /**
@@ -473,14 +550,14 @@ export class InMemoryApiService {
             closeTime = now;
         } else if (closeTime > now) {
             return Promise.reject(new InvalidParameterException("closeTime", closeTime, "Close time in future"));
-        } 
+        }
         return this.checkSessionId(sessionId).then(
             (id) => {
                 if (id in this.#sessions) {
                     const session = this.#sessions[id];
                     if (session.expires == null || session.expires > now) {
                         // The session is active. 
-                        this.#sessions[id] = {...session, expires: now};
+                        this.#sessions[id] = { ...session, expires: now };
                     }
                     return;
                 } else {
@@ -488,6 +565,86 @@ export class InMemoryApiService {
                 }
             }
         );
+    }
+
+    checkUserName(userName) {
+        /**
+         * @todo Checking validity of the user name.
+         */
+        return (typeof userName === "string" && userName.trim() === userName && userName.length > 0);
+    }
+
+    /**
+     * Check validity of the password.
+     * 
+     * @param {string} secret The checked secret.
+     * @return {Promise<string>} The promise of a valid password.
+     * @throws {InvalidParameterException<string>} The secret was invalid.
+     */
+    checkSecret(secret) {
+        return new Promise( (resolve, reject) => {
+            if (typeof secret === "string") {
+                if (/^(?:[\p{L}\p{N}\p{P}])(?:[\p{L}\p{N}\p{P} ]*[\p{L}\p{N}\p{P}])?$/u.test(secret)) {
+                    if (!/\p{Ll}/u.test(secret)) {
+                        // The secret does not have lower case letter.
+                        reject(new InvalidParameterException("secret", undefined, "Missing lower case letter"));
+                    } else if (!/\p{Lu}/.test(secret)) {
+                        // The secret does not have an upper case letter.
+                        reject(new InvalidParameterException("secret", undefined, "Missing upper case letter"));
+                    } else if (!/[\p{P}\p{N}]/.test(secret)) {
+                        // The secret does not have punctuation character.
+                        reject(new InvalidParameterException("secret", undefined, "Missing punctuation character"));
+                    } else {
+                        // The secret is okay.
+                        resolve(secret);
+                    }
+                } else {
+                    reject(new InvalidParameterException("secret", undefined, "Secret must start and end letter, number, or punctuation character, and may contain single spaces between the first and last character."))
+                }
+            } else {
+                reject(new InvalidParameterException("secret", undefined, "Invalid secret", new TypeError("Secret was not a string")));
+            }
+        });
+    }
+
+
+    /**
+     * Create a new user.
+     * @type {CreateUser<USER_DETAIL>}
+     */
+    createUser(userName, secret, userInfo = {}, expiration = undefined) {
+        const now = Date.now();
+        return new Promise((resolve, reject) => {
+            this.checkSecret(secret).then(
+                (validSecret) => {
+                    this.createHashedSecret(validSecret).then(
+                        ({ hash, salt }) => {
+                            // Creating the user.
+                            var id = crypto.randomUUID();
+                            while (id in this.#users) {
+                                id = crypto.randomUUID();
+                            }
+                            this.#users[id] = {
+                                userName: this.checkUserName(userName),
+                                hashedSecret: hash,
+                                salt,
+                                userInfo: /** @type {USER_DETAIL|undefined} */ userInfo,
+                                expires: expiration ?? null,
+                                emailVerified: false
+                            };
+
+                            resolve(this.#users[id].userInfo);
+                        },
+                        (error) => {
+                            reject(new InvalidParameterException("userName or password", undefined, "Invalid username or password"));
+                        }
+                    )
+                },
+                (error) => {
+                    reject(error);
+                }
+            )
+        });
     }
 }
 
