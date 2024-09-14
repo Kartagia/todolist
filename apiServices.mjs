@@ -242,6 +242,31 @@ export class BadRequestException extends HttpStatusException {
 }
 
 /**
+ * The valid password checking regular expression.
+ */
+export const VALID_PASSWORD_REGEX = /^(?:[\p{L}\p{N}\p{P}])(?:[\p{L}\p{N}\p{P} ]*[\p{L}\p{N}\p{P}])?$/u;
+
+/**
+ * The regular expression checking that there is an upper case letter.
+ */
+export const HAS_UPPER_CASE_LETTER_REGEX = /\p{Lu}/u;
+
+/**
+ * The regular expression checking that there is a lower case letter.
+ */
+export const HAS_LOWER_CASE_LETTER_REGEX = /\p{Ll}/u;
+
+/**
+ * The regular expression checking that there is a punctuation character.
+ */
+export const HAS_PUNCTUATION_REGEX = /\p{P}/u;
+
+/**
+ * The regular expression checking that there is a number.
+ */
+export const HAS_DIGIT_REGEX = /\p{N}/u;
+
+/**
  * @template CONTENT The api service content type.
  * @template [SESSION_DETAIL=void] The session detail.
  * @template [USER_DETAIL=UserInfo] The user detail.
@@ -574,6 +599,7 @@ export class InMemoryApiService {
         return (typeof userName === "string" && userName.trim() === userName && userName.length > 0);
     }
 
+
     /**
      * Check validity of the password.
      * 
@@ -582,16 +608,19 @@ export class InMemoryApiService {
      * @throws {InvalidParameterException<string>} The secret was invalid.
      */
     checkSecret(secret) {
-        return new Promise( (resolve, reject) => {
+        return new Promise((resolve, reject) => {
             if (typeof secret === "string") {
-                if (/^(?:[\p{L}\p{N}\p{P}])(?:[\p{L}\p{N}\p{P} ]*[\p{L}\p{N}\p{P}])?$/u.test(secret)) {
-                    if (!/\p{Ll}/u.test(secret)) {
+                if (VALID_PASSWORD_REGEX.test(secret)) {
+                    if (!HAS_LOWER_CASE_LETTER_REGEX.test(secret)) {
                         // The secret does not have lower case letter.
                         reject(new InvalidParameterException("secret", undefined, "Missing lower case letter"));
-                    } else if (!/\p{Lu}/.test(secret)) {
+                    } else if (!HAS_UPPER_CASE_LETTER_REGEX.test(secret)) {
                         // The secret does not have an upper case letter.
                         reject(new InvalidParameterException("secret", undefined, "Missing upper case letter"));
-                    } else if (!/[\p{P}\p{N}]/.test(secret)) {
+                    } else if (!HAS_DIGIT_REGEX.test(secret)) {
+                        // The secret does not have punctuation character.
+                        reject(new InvalidParameterException("secret", undefined, "Missing digit"));
+                    } else if (!HAS_PUNCTUATION_REGEX.test(secret)) {
                         // The secret does not have punctuation character.
                         reject(new InvalidParameterException("secret", undefined, "Missing punctuation character"));
                     } else {
