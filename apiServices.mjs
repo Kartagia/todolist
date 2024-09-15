@@ -592,11 +592,32 @@ export class InMemoryApiService {
         );
     }
 
-    checkUserName(userName) {
-        /**
-         * @todo Checking validity of the user name.
-         */
+    /**
+     * Test validity of the user name.
+     * @param {*} userName The tested user name.
+     * @returns {boolean} True, if and only if the user name is valid.
+     */
+    validUserName(userName) {
         return (typeof userName === "string" && userName.trim() === userName && userName.length > 0);
+    }
+
+    /**
+     * Check validity of the user name.
+     *
+     * @param {*} userName Tested user name.
+     * @param {string} [message] The error messaage, if the test fails.
+     * @returns {string} Valid user name, if the user name is valid.
+     * @throws {TypeError} The type of the user name was invalid.
+     * @throws {SyntaxError} The user name was valid type, but invalid value.
+     */
+    checkUserName(userName) {
+        if (this.validUserName(userName, message="Invalid user name")) {
+            return /** @type {string} */ userName;
+        } else if (typeof userName === "string") {
+            throw new TypeError(message);
+        } else {
+            throw new SyntaxError(message);
+        }
     }
 
 
@@ -604,34 +625,35 @@ export class InMemoryApiService {
      * Check validity of the password.
      * 
      * @param {string} secret The checked secret.
+     * @param {string} [message] The error messaage, if the test fails.
      * @return {Promise<string>} The promise of a valid password.
-     * @throws {InvalidParameterException<string>} The secret was invalid.
+     * @throws {InvalidParameterException<string, SyntaxError|TypeError>} The secret was invalid.
      */
-    checkSecret(secret) {
+    checkSecret(secret, message = "Invalid secret") {
         return new Promise((resolve, reject) => {
             if (typeof secret === "string") {
                 if (VALID_PASSWORD_REGEX.test(secret)) {
                     if (!HAS_LOWER_CASE_LETTER_REGEX.test(secret)) {
                         // The secret does not have lower case letter.
-                        reject(new InvalidParameterException("secret", undefined, "Missing lower case letter"));
+                        reject(new InvalidParameterException("secret", undefined, message, new SyntaxError("Missing lower case letter")));
                     } else if (!HAS_UPPER_CASE_LETTER_REGEX.test(secret)) {
                         // The secret does not have an upper case letter.
-                        reject(new InvalidParameterException("secret", undefined, "Missing upper case letter"));
+                        reject(new InvalidParameterException("secret", undefined, message, new SyntaxError("Missing upper case letter")));
                     } else if (!HAS_DIGIT_REGEX.test(secret)) {
                         // The secret does not have punctuation character.
-                        reject(new InvalidParameterException("secret", undefined, "Missing digit"));
+                        reject(new InvalidParameterException("secret", undefined, message, new SyntaxError("Missing digit")));
                     } else if (!HAS_PUNCTUATION_REGEX.test(secret)) {
                         // The secret does not have punctuation character.
-                        reject(new InvalidParameterException("secret", undefined, "Missing punctuation character"));
+                        reject(new InvalidParameterException("secret", undefined, message, new SyntaxError("Missing punctuation character")));
                     } else {
                         // The secret is okay.
                         resolve(secret);
                     }
                 } else {
-                    reject(new InvalidParameterException("secret", undefined, "Secret must start and end letter, number, or punctuation character, and may contain single spaces between the first and last character."))
+                    reject(new InvalidParameterException("secret", undefined, message, new SyntaxError("Secret must start and end letter, number, or punctuation character, and may contain single spaces between the first and last character.")))
                 }
             } else {
-                reject(new InvalidParameterException("secret", undefined, "Invalid secret", new TypeError("Secret was not a string")));
+                reject(new InvalidParameterException("secret", undefined, message, new TypeError("Secret was not a string")));
             }
         });
     }
@@ -665,12 +687,12 @@ export class InMemoryApiService {
                             resolve(this.#users[id].userInfo);
                         },
                         (error) => {
-                            reject(new InvalidParameterException("userName or password", undefined, "Invalid username or password"));
+                            reject(new InvalidParameterException("userName or password", undefined, "Invalid username or password", error));
                         }
                     )
                 },
                 (error) => {
-                    reject(error);
+                    reject(new InvalidParameterException("Username or password", undefined, "Invalid username or secret", error));
                 }
             )
         });
