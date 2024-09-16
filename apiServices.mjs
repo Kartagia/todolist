@@ -86,14 +86,14 @@ export function createCompleteAllTodo(name, completedBy = [], prohibitedBy = [])
  * @throws {TypeError} The predicate is not a function.
  * @throws {RangeError} The predicate requires more than 1 parameter.
  */
-export function createPredicatePromise(predicate, parameter="tested", message=undefined) {
+export function createPredicatePromise(predicate, parameter = "tested", message = undefined) {
     if (typeof predicate !== "function") {
         throw new TypeError("A function predicate is required");
     } else if (predicate.length > 1) {
         throw new RangeError("The predicate must accept at most 1 parameter");
     }
 
-    return /** @type {PredicatePromise<TYPE>} */ (tested) => (new Promise( (resolve, reject) => {
+    return /** @type {PredicatePromise<TYPE>} */ (tested) => (new Promise((resolve, reject) => {
         if (predicate(tested)) {
             resolve();
         } else {
@@ -312,6 +312,15 @@ export const HAS_PUNCTUATION_REGEX = /\p{P}/u;
 export const HAS_DIGIT_REGEX = /\p{N}/u;
 
 /**
+ * Content entry is the key-value pair of the entry.
+ *
+ * @template [CONTENT=any] The type of the content.
+ * @typedef {Object} ContentEntry
+ * @property {KEY} id The identifier of the entry.
+ * @property {CONTENT} content The content of the entry.
+ */
+
+/**
  * @template CONTENT The api service content type.
  * @template [SESSION_DETAIL=void] The session detail.
  * @template [USER_DETAIL=UserInfo] The user detail.
@@ -321,7 +330,7 @@ export class InMemoryApiService {
 
     /**
      * The contents of the API service.
-     * @type {Record<string, CONTENT>}
+     * @type {Record<string, ContentEntry<CONTENT>>}
      */
     #content = {};
 
@@ -423,7 +432,7 @@ export class InMemoryApiService {
      * resending the request. The details contains the user id.
      * @throws {HttpStatusException<void>} The request was invalid.
      */
-    getContent(sessionId, userId, contentId) {
+    getAvailableContent(sessionId, userId, contentId) {
         const now = Date.now();
         return new Promise((resolve, reject) => {
 
@@ -436,7 +445,7 @@ export class InMemoryApiService {
                     const session = this.#sessions[sessionId];
                     if (session.userId === userId) {
                         if (userId in this.#content && contentId in this.#content[userId]) {
-                            resolve(this.#content[userId][contentId]);
+                            resolve(this.#content[userId][contentId].content);
                         } else {
                             reject(new NotFoundException("The resource does not exists", undefined, [userId, contentId]));
                         }
@@ -544,6 +553,13 @@ export class InMemoryApiService {
     }
 
     /**
+     * The array of reserved session secrets with session id of the secret.
+     *
+     * @type {[string, string][]}
+     */
+    #reservedSessionSecrets = [];
+
+    /**
      * Create a new session.
      * 
      * @param {string} userId The user identifier.
@@ -553,11 +569,10 @@ export class InMemoryApiService {
         const now = Date.now();
         return new Promise((resolve, reject) => {
             if (userId in this.#users) {
-                var sessionId = crypto.randomUUID();
-                while (sessionId in this.#sessions) {
-
-                }
-                secret = crypto.getRandomValue();
+                const sessionId = this._createId(Object.getOwnPropertyNames(this.#sessions));
+                this.#sessions[sessionId] = null;
+                secret = this._createId(this.#reservedSessionSecrets.map( entry => (entry[0])));
+                this.#reservedSessionSecrets.push([secret, sessionId]);
                 this.#sessions[sessionId] = {
                     userId,
                     sessionId: id,
@@ -747,15 +762,16 @@ export class InMemoryApiService {
      * Get todos of the user.
      * 
      * @param {string} userId The user id of the todo owner.
-     * @param {Predicate<CONTENT>} [filter] The filter of the todo. Defaults to get all.
+     * @param {Predicate<ContentEntry<CONTENT>>} [filter] The filter of the todo. Defaults to get all.
+     * @returns {ContentEntry<CONTENT>[]} The array of content entries.
      */
     getContents(userId, filter = (() => true)) {
         return new Promise((resolve, reject) => {
             if (this.validId(userId)) {
                 if (userId in this.#users && userId in this.#content) {
-                    resolve(this.#content[userId]);
+                    resolve(this.#content[userId].filter(filter));
                 } else {
-                    resolve(/** @type {CONTENT[]}*/ []);
+                    resolve(/** @type {ContentEntry<CONTENT>[]}*/[]);
                 }
             } else {
                 reject(new BadRequestException("Bad request"));
@@ -773,16 +789,103 @@ export class InMemoryApiService {
      * @throws {NotFoundException} The not found exception wiht the todo identifier
      * as value.
      */
-    getContent(userId, contentId, message="Content not found") {
+    getContent(userId, contentId, message = "Content not found") {
         return this.getContents(userId, (content) => (content.id === contentId)).then(
             (contents) => {
                 if (contents.length > 0) {
-                    resolve(contents[0]);
+                    resolve(contents[0].content);
                 } else {
                     reject(new NotFoundException(message));
                 }
             }
         );
+    }
+
+    /**
+     * Test validity of a new content.
+     *
+     * @param {Partial<CONTENT>} content The new content.
+     * @returns {boolean} True, if and only if the content is valid.
+     */
+    validNewContent(content) {
+        return typeof content === "object" && content !== null;
+    }
+
+    /**
+     * Test validity of a content.
+     *  
+     * @param {CONTENT} content The content.
+     * @returns {boolean} True, if and only if the content is valid.
+     */
+    validContent(content) {
+        return typeof content === "object" && content !== null;
+    }
+
+    /**
+     * Get the default values of the content.
+     * 
+     * @returns {Partial<CONTENT>} The default values of the content.
+     */
+    defaultContentValues() {
+        return {};
+    }
+
+    /**
+     * Create a new identifier.
+     * 
+     * @param {string[]} [idCollection] The reserved identifiers.
+     * @returns {Promise<string>} The promise of a new unique identifier.
+     */
+    _createId() {
+        return new Promise((resolve, reject) => {
+            try {
+                var result = crypto.randomUUID();
+                if (idCollection) {
+                    while (result in idCollection) {
+                        result = crypto.randomUUID();
+                    }
+                }
+                resolve(result);
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    /**
+     * Get next content identifier.
+     * 
+     * @returns {Promise<string>} The promise of the next identifier.
+     */
+    createContentId() {
+        return this._createId(Object.getOwnPropertyNames(this.#content));
+    }
+
+    /**
+     * Create a new content.
+     * @param {Partial<CONTENT>} newContent The new content.
+     * @returns {Promise<ContentEntry<string, CONTENT>>} The new content entry.
+     * @throws {InvalidParameterException<CONTENT>} The new content was invalid. 
+     */
+    async createContentEntry(newContent) {
+        return new Promise((resolve, reject) => {
+            if (this.validNewContent(newContent)) {
+                var id = undefined;
+                this.createContentId().then(
+                    (id) => {
+                        resolve({
+                            id,
+                            content: { ... this.defaultContentValues(), ...newContent }
+                        });
+                    },
+                    (error) => {
+                        reject(new HttpStatusException("Could not generate identifier", error, 500));
+                    }
+                );
+            } else {
+                reject(new InvalidParameterException("newContent", newContent, "Invalid new content"));
+            }
+        })
     }
 
     /**
@@ -793,8 +896,23 @@ export class InMemoryApiService {
      * @returns {Promise<string>} The promise of the todo identifier of the created todo.
      * @throws {InvalidParameterException<CONTENT>} The cotent was invalid.
      */
-    createTodo(userId, todo) {
-
+    createContent(userId, content) {
+        return new Promise((resolve, reject) => {
+            if (this.validId(userId) && userId in this.#users) {
+                if (!this.validNewContent(content)) {
+                    reject(new BadRequestException("Invalid content"));
+                    return;
+                }
+                // Adding the created.
+                if (!(userId in this.#content)) {
+                    this.#content[userId] = [this.createContentEntry(content)];
+                } else {
+                    this.#content[userId].push(this.createContentEntry(content));
+                }
+            } else {
+                reject(new BadRequestException("Bad request"));
+            }
+        });
     }
 }
 
