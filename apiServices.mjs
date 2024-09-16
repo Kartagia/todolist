@@ -83,8 +83,16 @@ export function createCompleteAllTodo(name, completedBy = [], prohibitedBy = [])
  * @param {string} [message] The error meessage of the rejection. Defaults to "Invalid ${parameter} value".
  * @returns {PredicatePromise<TYPE>} The predicate promise using the given predicate to determine
  * validity.
+ * @throws {TypeError} The predicate is not a function.
+ * @throws {RangeError} The predicate requires more than 1 parameter.
  */
 export function createPredicatePromise(predicate, parameter="tested", message=undefined) {
+    if (typeof predicate !== "function") {
+        throw new TypeError("A function predicate is required");
+    } else if (predicate.length > 1) {
+        throw new RangeError("The predicate must accept at most 1 parameter");
+    }
+
     return /** @type {PredicatePromise<TYPE>} */ (tested) => (new Promise( (resolve, reject) => {
         if (predicate(tested)) {
             resolve();
