@@ -58,6 +58,43 @@ export function createCompleteAllTodo(name, completedBy = [], prohibitedBy = [])
  */
 
 /**
+ * @template TYPE The tested type.
+ * @callback Predicate
+ * @param {TYPE} tested The tested value.
+ * @returns {boolean} True, if and only if the tested value passes the predicate.
+ */
+
+/**
+ * The predicate form of the predicate does resolve with passing value and reject with
+ * failure.
+ * 
+ * @template TYPE The tested type.
+ * @callback PredicatePromise
+ * @param {TYPE} tested The tested value.
+ * @returns {Promise<void>} The promise of validity.
+ * @throws {InvalidParameterException<TYPE>} The tested value did not pass the predicate. 
+ */
+
+/**
+ * 
+ * @template TYPE The type of the tested value.
+ * @param {Predicate<TYPE>} predicate The predicate performing the testing.
+ * @param {string|symbol} [parameter] The tested parameter name. Defaults to "tested".
+ * @param {string} [message] The error meessage of the rejection. Defaults to "Invalid ${parameter} value".
+ * @returns {PredicatePromise<TYPE>} The predicate promise using the given predicate to determine
+ * validity.
+ */
+export function createPredicatePromise(predicate, parameter="tested", message=undefined) {
+    return /** @type {PredicatePromise<TYPE>} */ (tested) => (new Promise( (resolve, reject) => {
+        if (predicate(tested)) {
+            resolve();
+        } else {
+            reject(new InvalidParameterException(parameter, tested, message === undefined ? `Invalid ${parameter} value` : message));
+        }
+    }));
+}
+
+/**
  * Getter of a value.
  * @template [KEY=any] The type of the key.
  * @template [RESULT=any] The type of the getter value.
@@ -611,7 +648,7 @@ export class InMemoryApiService {
      * @throws {SyntaxError} The user name was valid type, but invalid value.
      */
     checkUserName(userName) {
-        if (this.validUserName(userName, message="Invalid user name")) {
+        if (this.validUserName(userName, message = "Invalid user name")) {
             return /** @type {string} */ userName;
         } else if (typeof userName === "string") {
             throw new TypeError(message);
@@ -696,6 +733,60 @@ export class InMemoryApiService {
                 }
             )
         });
+    }
+
+    /**
+     * Get todos of the user.
+     * 
+     * @param {string} userId The user id of the todo owner.
+     * @param {Predicate<CONTENT>} [filter] The filter of the todo. Defaults to get all.
+     */
+    getContents(userId, filter = (() => true)) {
+        return new Promise((resolve, reject) => {
+            if (this.validId(userId)) {
+                if (userId in this.#users && userId in this.#content) {
+                    resolve(this.#content[userId]);
+                } else {
+                    resolve(/** @type {CONTENT[]}*/ []);
+                }
+            } else {
+                reject(new BadRequestException("Bad request"));
+            }
+        });
+    }
+
+    /**
+     * Get single todo.
+     * 
+     * @param {string} userId The user identifier.
+     * @param {string} contentId The content identifier.
+     * @param {string} [message] The error message, if the content is not found
+     * @returns {Promise<CONTENT>} The promise of the todo.
+     * @throws {NotFoundException} The not found exception wiht the todo identifier
+     * as value.
+     */
+    getContent(userId, contentId, message="Content not found") {
+        return this.getContents(userId, (content) => (content.id === contentId)).then(
+            (contents) => {
+                if (contents.length > 0) {
+                    resolve(contents[0]);
+                } else {
+                    reject(new NotFoundException(message));
+                }
+            }
+        );
+    }
+
+    /**
+     * Create a new todo.
+     * 
+     * @param {string} ownerId The user id of the owner.
+     * @param {Partial<CONTENT>} content The created content.
+     * @returns {Promise<string>} The promise of the todo identifier of the created todo.
+     * @throws {InvalidParameterException<CONTENT>} The cotent was invalid.
+     */
+    createTodo(userId, todo) {
+
     }
 }
 
