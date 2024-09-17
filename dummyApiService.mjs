@@ -14,7 +14,7 @@ import {InMemoryApiService} from "./apiServices.mjs";
 
 /**
  * The api service properties.
- * @type {import("./apiServices.mjs").ApiServiceParams<Todo, void, EmailUserProperties>} 
+ * @type {import("./apiServices.mjs").IdentifiedApiServiceParams<Todo, void, EmailUserProperties>} 
  */
 const apiServiceProps = {
     /**
@@ -47,7 +47,7 @@ const apiServiceProps = {
 /**
  * The todo api service.
  * 
- * @type {import("./apiServices.mjs").ApiService<import("./apiServices.mjs").Todo>}
+ * @type {import("./apiServices.mjs").IdentifiedApiService<string, import("./apiServices.mjs").Task>}
  */
 var service = new InMemoryApiService(apiServiceProps);
 
@@ -72,6 +72,24 @@ var service = new InMemoryApiService(apiServiceProps);
             throw error;
         }
     );
+    console.groupEnd();
+
+    console.group("Create dummy sessions");
+    service.createSession(id).then(
+        (sessionInfo) => {
+            console.log(`Created session ${sessionInfo.id} at ${(new Date(sessionInfo.created)).toISOString()}`)
+        }, 
+        (error) => {
+            console.error(`Creating user ${userName} session failed due ${error.message}`);
+            if ("cause" in error) {
+                console.error(`Cause of the error ${error.cause}`);
+            }
+            throw error;
+        }
+    )
+    console.groupEnd();
+
+    console.group("Create dummy todos");
     console.groupEnd();
 })();
 
