@@ -8,54 +8,68 @@
 import { AccessForbiddenException, AuthenticationRequiredException, HttpStatusException } from "./errors.mjs";
 import { NotFoundException } from "./errors.mjs";
 import { InvalidParameterException } from "./errors.mjs";
+///////////////////////////////////////////////////////////////////
+// Exceptions
+///////////////////////////////////////////////////////////////////
 
 /**
- * @typedef {Object} SimpleTodo
- * @property {string} name The name of the todo.
- * @property {boolean} done Is the todo done.
+ * The bad request excpetion.
+ * @template [CAUSE=any] The cause of the exception.
+ * @extends {HttpStatusException<CAUSE>}
  */
+export class BadRequestException extends HttpStatusException {
 
-/**
- * @typedef {Object} LinkedTodo
- * @property {string} name The name of the linked todo.
- * @property {Todo[]} [completedBy=[]] The required todos.
- * @property {Todo[]} [prohibitedBy=[]] The prohibited todos preventing the completion.
- * @property {Readonly<boolean>} completed Is the todo completed.
- * @property {Readonly<boolean>} prohibited Is the completion prohibited.
- * @property {Readonly<boolean>} partial Is the todo partially completed. 
- */
-
-/**
- * Get todo requiring all todos to complete.
- * @param {string} name The name of the todo. 
- * @param {Todo[]} [completedBy=[]] The list of todos, which has to be all completed.
- * @param {Todo[]} [prohibitedBy=[]] The list of todos, which all has to be incompleted.
- * @returns {LinkedTodo}
- */
-export function createCompleteAllTodo(name, completedBy = [], prohibitedBy = []) {
-    return /** @type {LinkedTodo} */ {
-        name,
-        get completedBy() {
-            return completedBy;
-        },
-        get prohibitedBy() {
-            return prohibitedBy;
-        },
-        get prohibited() {
-            return prohibitedBy.length > 0 && prohibitedBy.anyMatch(prohibited => (prohibited.done));
-        },
-        get done() {
-            return !this.prohibited && (completedBy.length == 0 || completedBy.allMatch(completed => (completed.done)));
-        },
-        get partial() {
-            return !this.prohibited && !this.done && (completedBy.length > 0 && completedBy.anyMatch(completed => (completed.done)));
-        }
-    };
+    /**
+     * Create a new bad request exception.
+     *
+     * @param {string} [message] The message of the exception.
+     * @param {CAUSE} [cause] The cause of the exception. 
+     */
+    constructor(message = undefined, cause = undefined) {
+        super(message, cause, 400);
+    }
 }
 
+
+///////////////////////////////////////////////////////////////////
+// The hashing related data types and methods.
+///////////////////////////////////////////////////////////////////
+
 /**
- * @typedef {SimpleTodo|LinkedTodo} Todo
+ * Hashing algoritm options.
+ * 
+ * @typedef {Object} HashOptions 
+ * @property {string} algoritm The algorithm used for crypting.
+ * @property {number} [length] The key length of the hash. Defaults to the key length of the algorithm.
  */
+
+/**
+ * @typedef {Object} ComplexHashOptionProps
+ * @property {number} [rounds] The number of rounds the hashing
+ * @property {number} [saltLength] The length of the salt. Defaults to the half of the key length.
+ */
+
+/**
+ * Complex hash algoritm options.
+ * @typedef {ComplexHashOptionProps & HashOptions} ComplexHashOptions
+ */
+
+/**
+ * The crypt options for password encyption.
+ * @typedef {Partial<ComplexHashOptions>|Partial<HashOptions>} CryptOptions
+ */
+
+/**
+ * The hashed password stores the hashed password and the salt used.
+ *
+ * @typedef {Object} HashedPassword
+ * @property {string} salt The salt used for hashing in hex format.
+ * @property {string} hash The hashed password.
+ */
+
+/////////////////////////////////////////////////////////////////////
+// Utility types.
+/////////////////////////////////////////////////////////////////////
 
 /**
  * @template TYPE The tested type.
@@ -76,6 +90,7 @@ export function createCompleteAllTodo(name, completedBy = [], prohibitedBy = [])
  */
 
 /**
+ * Create a predicate promise.
  * 
  * @template TYPE The type of the tested value.
  * @param {Predicate<TYPE>} predicate The predicate performing the testing.
@@ -127,13 +142,210 @@ export function createPredicatePromise(predicate, parameter = "tested", message 
  */
 
 /**
- * The todo data of the user.
- * @typedef {Object} TodoData
- * @property {Todo[]} todos The todos of the user.
+ * A creator creates a new resource.
+ * 
+ * @template [SOURCE=any] The source type.
+ * @template [RESOURCE=any] The result type.
+ * @template [EXCEPTION=any] The rejection error type.
+ * @callback Creator
+ * @param {SOURCE} source The source value, from which the resource is created.
+ * @returns {Promise<RESOURCE>} The promise of the created resource.
+ * @throws {EXCEPTION} The creation of the resource failed.
  */
 
 /**
+ * An entry is a identifier-content pair.
+ *
+ * @template [ID=string] The type of the entry identifier..
+ * @template [CONTENT=any] The type of the content.
+ * @typedef {Object} Entry
+ * @property {ID} id The identifier of the entry.
+ * @property {CONTENT} content The content of the entry.
+ */
+
+/**
+ * The properties specific to a mutable entry.
+ * 
+ * @template [ID=string] The type of the entry identifier..
+ * @template [CONTENT=any] The type of the content.
+ * @typedef {Object} MutableEntryProps
+ * @property {(value: CONTENT) => Promise<void>} setContent The setter of a content value.
+ * @property {Predicate<CONTENT>} [validContent] The validator of the content. Defaults to a
+ * predicate accepting all values.
+ */
+
+/**
+ * A mutable entry allows setting the content.
+ * 
+ * @template [ID=string] The type of the entry identifier..
+ * @template [VALUE=any] The type of the value.
+ * @typedef {Entry<ID, VALUE> & MutableEntryProps<ID, VALUE>} MutableEntry
+ */
+
+/////////////////////////////////////////////////////////////////////
+// Tasks section.
+/////////////////////////////////////////////////////////////////////
+
+/**
+ * A simple task contains task name and
+ * @typedef {Object} SimpleTask
+ * @property {Readonly<string>} name The name of the task.
+ * @property {Readonly<boolean>} done Has the task completed.
+ */
+
+/**
+ * A task, whose status can be changed.
+ * @typedef {Object} MutableTask
+ * @property {Readonly<string>} name The name of the task.
+ * @property {boolean} done Has the task compelted.
+ */
+
+/**
+ * Create a new todo.
+ * @param {string} name The name of the todo. 
+ * @param {boolean} [done=false] The status of the task. Defaults to false.
+ * @returns {SimpleTask} The created simple todo.
+ */
+export function createSimpleTask(name, done=false) {
+    return {
+        name,
+        done: done == true
+    };
+}
+
+/**
+ * Linked todo joining several tasks.
+ * 
+ * @typedef {Object} LinkedTask
+ * @property {string} name The name of the linked todo.
+ * @property {Task[]} [completedBy=[]] The todos determining the completion.
+ * @property {Readonly<boolean>} partial Is the todo partially completed.
+ * @property {Readonly<boolean|undefined>} done Is the todo completed. An undefined value
+ * indicates the todo is impartial - between all tasks completed and no task completed. 
+ */
+
+/**
+ * A task, which may be blocked.
+ * @typedef {Object} Blockable
+ * @property {Task[]} [blockedBy=[]] The prohibited todos preventing the completion.
+ * @property {Readonly<boolean>} blocked Is the completion prohibited due complete blocked task.
+ */
+
+/**
+ * A task which is both linked and blcokable.
+ * @typedef {LinkedTask & Blockable} BlockableLinkedTask
+ */
+
+/**
+ * Createa linked task.
+ * 
+ * @param {string} name The name of the linked task.
+ * @param {Task[]} [members=[]] The members of the linked task.
+ * @param {Predicate<Task[]>} [completionFn] The funciton testing whether the members fulfil the task.
+ * Defaults to the all members are completed.
+ * @returns {LinkedTask} The create dlinked task.
+ */
+export function createLinkedTask(name, members = [], completionFn = (members) => (members.every( task => task.done))) {
+    const result = /** @type {LinkedTask} */ {
+        get name() {
+            return name;
+        },
+
+        get completedBy() {
+            return members;
+        },
+
+        get done() {
+            return completionFn(this.completedBy);
+        },
+
+        get partial() {
+            return this.completedBy.some( task => task.done) && !this.done;
+        }
+    };
+    return Promise.resolve(result);
+}
+
+/**
+ * Create a task requiring all tasks are completed.
+ * 
+ * @param {string} name The name of the taks.
+ * @param {...Task} [completedBy=[]] The list of tasks required to complee the task.
+ * @returns {LinkedTask} A linked task completed when all tasks are completed.
+ */
+export function createCompleteAllTask(name, completedBy = []) {
+    return createLinkedTask(name, completedBy);
+}
+
+/**
+ * Create a task requiring any task to completed.
+ * 
+ * @param {string} name The name of the taks.
+ * @param {...Task} [completedBy=[]] The list of tasks required to complee the task.
+ * @returns {LinkedTask} A linked task completed when any task are completed.
+ */
+export function createCompleteAnyTask(name, completedBy = []) {
+    return createLinkedTask(name, completedBy, (members) => (members.some( task => task.done)));
+}
+
+/**
+ * Get todo requiring all todos to complete.
+ * 
+ * @param {Readonly<string>} name The name of the todo. 
+ * @param {Readonly<Task[]>} [completedBy=[]] The list of tasks, which has to be all completed.
+ * @param {Readonly<Task[]>} [blockedBy=[]] The list of tasks, which all has to be incompleted.
+ * @returns {BlockableLinkedTask} a task completed when all of the require tasks are finished, and
+ * blocked, when any of the prohibted tasks is completed.
+ */
+export function createCompleteAllStepsBlockingTask(name, completedBy = [], blockedBy = []) {
+    return /** @type {BlockableLinkedTask} */ {
+        get name() {
+            return name;
+        },
+        get completedBy() {
+            return completedBy;
+        },
+        get blockedBy() {
+            return blockedBy;
+        },
+        get blocked() {
+            return blockedBy.length > 0 && blockedBy.anyMatch(prohibited => (prohibited.done));
+        },
+        get done() {
+            if (this.prohibited) {
+                return false;
+            } else {
+                const completed = this.completedBy.reduce( (result, todo) => (
+                    result + (todo.done ? 1 : 0)
+                ), 0);
+                return completed === this.completedBy.length ? true : undefined;
+            }
+        },
+        get partial() {
+            return this.done === undefined;
+        }
+    };
+}
+
+/**
+ * The type of tasks.
+ * @typedef {SimpleTask|LinkedTask|MutableTask} Task
+ */
+
+/**
+ * The todo data of the user.
+ * @typedef {Object} TodoData
+ * @property {Task[]} todos The todos of the user.
+ */
+
+
+/////////////////////////////////////////////////////////////////////
+// User section
+/////////////////////////////////////////////////////////////////////
+
+/**
  * The user information structure.
+ * 
  * @template [DETAIL=void] The detail type of the user information.
  * @typedef {Object} UserInfo
  * @property {string} displayName The display name of the user.
@@ -145,39 +357,26 @@ export function createPredicatePromise(predicate, parameter = "tested", message 
 
 /**
  * The user data.
+ * 
  * @template [DETAIL=void] The user detail.
+ * @template [USER_ID=string] The user identifier type.
  * @typedef {Object} UserData
  * @property {string} userName the user name.
  * @property {string} hashedSecret The hashed secret.
  * @property {string} salt The salt used to hash the secret.
- * @property {string} id The uuid of the user.
+ * @property {USER_ID} id The uuid of the user.
  * @property {UserInfo<DETAIL>} userInfo The user detail.
  * @property {boolean} [emailVerified=false] Has the user email been verified.
  */
 
 /**
- * Session data.
- * @template DETAIL The session detail
- * @template USER_DETAIL The user detail.
- * @typedef {Object} SessionData
- * @property {string} id The session identifier.
- * @property {string} userId The session owner identifier.
- * @property {number} created The creation UTC timestamp.
- * @property {number|null} expires The expiration UTC timestamp. If null, the session will not expire.
- * @property {string} hashedSecret The hashed secret.
- * @property {UserInfo<USER_DETAIL>} userInfo The user information of the current user.
- * @property {DETAIL} [sessionDetail] The optional session detail. 
- */
-
-/**
- * Log in an user.
- *
- * @template [DETAIL=void] The session detail type.
- * @template [USER_DETAIL=void] The user detail type.
+ * The user login without session.
+ * 
+ * @template [RESULT=void] The result of the login.
  * @callback Login
  * @param {string} user The user name.
  * @param {string} secret The secret.
- * @returns {Promise<SessionData<DETAIL, USER_DETAIL>>} The promise of the session data.
+ * @returns {Promise<RESULT>} The promise of the successful login.
  * @throws {AccessForbiddenException<string>} The user cannot log in.
  * @throws {InvalidParameterException<string>} Either the user or secret was invalid.
  */
@@ -186,71 +385,83 @@ export function createPredicatePromise(predicate, parameter = "tested", message 
  * Create a new user.
  * 
  * @template [DETAIL=void] The detail type of the user information.
+ * @template [USER_ID=string] The user identifier.
  * @callback CreateUser
  * @param {string} user The user name.
  * @param {string} secret The user secret.
  * @param {Partial<UserInfo<DETAIL>>} [details] The user details.
- * @returns {Promise<UserInfo>} The promise of the user information.
+ * @returns {Promise<Entry<USER_ID, UserInfo<USER_DETAIL>>} The promise of the entry of user identifier
+ * and user information.
  * @throws {InvalidParameterException<string>} The user or secret was invalid.
- * @throws {InvalidParameterException<Partial<UserInfo>>} The user information was invalid.
+ * @throws {InvalidParameterException<Partial<UserInfo<USER_DETAIL>>>} The user information was invalid.
+ */
+
+
+/**
+ * The user registry.
+ * @template [USER_DETAIL=void] The user detail.
+ * @template [ID=string] The identifier type of the user.
+ * @typedef {Object} UserRegistry
+ * @property {Login<USER_DETAIL>} login Log in an existing user.
+ * @property {CreateUser<USER_DETAIL, ID>} register Register
+ * a new user.
+ * @property {Getter<ID, UserData<USER_DETAIL, ID>>} getUser Get the user with identifier.
+ * @property {Setter<ID, UserData<USER_DETAIL, ID>>} setUser Set the user with identifier.
+ * @property {Getter<ID, void>} removeUser Remove an user.
+ */
+
+///////////////////////////////////////////////////////////////////
+// Session
+///////////////////////////////////////////////////////////////////
+
+/**
+ * Session data.
+ * 
+ * @template DETAIL The session detail
+ * @template [SESSION_ID=string] The session identifier.
+ * @template [USER_ID=string] The user identifier.
+ * @typedef {Object} SessionData
+ * @property {SESSION_ID} id The session identifier.
+ * @property {USER_ID} userId The session owner identifier.
+ * @property {number} created The creation UTC timestamp.
+ * @property {number|null} expires The expiration UTC timestamp. If null, the session will not expire.
+ * @property {string} hashedSecret The hashed secret.
+ * @property {DETAIL} [sessionDetail] The optional session detail. 
+ */
+
+
+/**
+ * Log in an user with a session.
+ * 
+ * If the caller provides a valid session identifier, and the session exists and is owned
+ * by the user, the given session is re-opened on successful login.
+ * 
+ * Otherwise a new session is created on successful login.
+ *
+ * @template [SESSION_ID=string] The session identifier.
+ * @template [SESSION_DETAIL=void] The session detail type.
+ * @template [USER_DETAIL=void] The user detail type.
+ * @callback SessionLogin
+ * @param {string} user The user name.
+ * @param {string} secret The secret.
+ * @param {SESSION_ID} [sessionId] The session identifier of the session the login tries
+ * to update before creating a new session.
+ * @returns {Promise<SessionData<SESSION_DETAIL, SESSION_ID, USER_ID>>} The promise of the session data.
+ * @throws {AccessForbiddenException<string>} The user cannot log in.
+ * @throws {InvalidParameterException<string>} Either the user or secret was invalid.
  */
 
 /**
  * Update an existing session.
  *
  * @template [DETAIL=void] The detail of the session.
+ * @template [SESSION_ID=string] The session identifier.
+ * @template [USER_ID=string] The user identifier.
  * @callback UpdateSession
- * @param {string} userId The user identifier of the owning user.
- * @param {string} sessionId The session id of the current session.
+ * @param {USER_ID} userId The user identifier of the owning user.
+ * @param {SESSION_ID} sessionId The session id of the current session.
  * @param {DETAIL} [detail] The optional new detail of the session.
- * @returns {Promise<SessionData<DETAIL>>} The promise of the updated session data. 
- */
-
-/**
- * Hashing algoritm options.
- * 
- * @typedef {Object} HashOptions 
- * @property {string} algoritm The algorithm used for crypting.
- * @property {number} [length] The key length of the hash. Defaults to the key length of the algorithm.
- */
-
-/**
- * @typedef {Object} ComplexHashOptionProps
- * @property {number} [rounds] The number of rounds the hashing
- * @property {number} [saltLength] The length of the salt. Defaults to the half of the key length.
- */
-
-/**
- * Complex hash algoritm options.
- * @typedef {ComplexHashOptionProps & HashOptions} ComplexHashOptions
- */
-
-/**
- * The crypt options for password encyption.
- * @typedef {Partial<ComplexHashOptions>|Partial<HashOptions>} CryptOptions
- */
-
-/**
- * The hashed password stores the hashed password and the salt used.
- *
- * @typedef {Object} HashedPassword
- * @property {string} salt The salt used for hashing in hex format.
- * @property {string} hash The hashed password.
- */
-
-/**
- * @template [CONTENT=any] The API service content type.
- * @template [SESSION_DETAIL=void] The session detail.
- * @template [USER_DETAIL=void] The user detail.
- * @typedef {Object} ApiService
- * @property {Readonly<Getter<string,CONTENT>>} getContent Get content of the API service.
- * @property {Readonly<Setter<string,CONTENT>>} [setContent] The optional replacer of the content. 
- * @property {Login<SESSION_DETAIL, USER_DETAIL>} login Log in an existing user.
- * @property {CreateUser<USER_DETAIL>} register Register
- * a new user.
- * @property {Getter<string, SessionData<SESSION_DETAIL, USER_DETAIL>>} createSession Create a new session for an user.
- * @property {UpdateSession<UserInfo<USER_DETAIL>>} updateSession Update an existing session.
- * @property {(sessionId: string) => Promise<void>} closeSession Close an existing session.
+ * @returns {Promise<SessionData<DETAIL,SESSION_ID, USER_ID>>} The promise of the updated session data. 
  */
 
 /**
@@ -259,32 +470,71 @@ export function createPredicatePromise(predicate, parameter = "tested", message 
  * @property {Partial<CryptOptions>} cryptOptions The crypt options for the secrets.
  */
 
+///////////////////////////////////////////////////////////////////
+// The Api Service 
+///////////////////////////////////////////////////////////////////
+
 /**
- * The Api service construction parameters.
+ * A simple api service.
+ * @template [ID=string] The identifier type of the api service.
+ * @template [RESOURCE=any] The API service content type. The resource the service provides.
+ * @typedef {Object} ApiService
+ * @property {Readonly<Getter<ID,RESOURCE>>} getContent Get content of the API service.
+ * @property {Readonly<Setter<ID,RESOURCE>>} [setContent] The optional replacer of the content.
+ * @property {Readonly<Creator<Partial<RESOURCE>, Entry<ID, RESOURCE>>} [createContent] Create a new content.
+ */
+/**
+ * An user identifying Api Service.
+ * @template [RESOURCE_ID=string] The identifier type of the api service.
+ * @template [USER_ID=string] The identifier type of the user.
+ * @template [RESOURCE=any] The API service content type. The resource the service provides.
+ * @template [USER_DETAIL=void] The user detail.
+ * @typedef {UserRegistry<USER_DETAIL, USER_ID> & ApiService<RESOURCE_ID, RESOURCE>}
+ */
+
+/**
+ * A session registry.
+ * @template [SESSION_DETAIL=void] The session detail.
+ * @template [SESSION_ID=string] The session identifeir type.
+ * @template [USER_ID=string] The identifier type of the user.
+ * @typedef {Object} SessionRegistry
+ * @property {SessionLogin<SESSION_ID, SESSION_DETAIL, USER_ID>} sessionLogin Log in a session. 
+ * @property {Getter<USER_ID, SessionData<SESSION_DETAIL>>} createSession Create a new session for an user.
+ * @property {UpdateSession<SESSION_DETAIL, SESSION_ID, USER_ID>} updateSession Update an existing session.
+ * @property {(sessionId: SESSION_ID) => Promise<void>} closeSession Close an existing session.
+ */
+
+/**
+ * The user registry wtih session registry. The registry requires session login instead of user login.
+ * 
+ * @template [SESSION_DETAIL=void] The session detail.
+ * @template [USER_DETAIL=void] The user detail.
+ * @template [SESSION_ID=string] The session identifeir type.
+ * @template [USER_ID=string] The identifier type of the user.
+ * @typedef {Omit<UserRegistry<USER_DETAIL, USER_ID>, "login"> & SessionRegistry<SESSION_DETAIL, SESSION_ID, USER_ID>} UserAndSessionRegistry
+ */
+
+/**
+ * An API service represents a Api Service for resource.
+ * @template [ID=string] The identifier type of the api service.
+ * @template [RESOURCE=any] The API service content type. The resource the service provides.
+ * @template [SESSION_DETAIL=void] The session detail.
+ * @template [USER_DETAIL=void] The user detail.
+ * @typedef {UserAndSessionRegistry<SESSION_DETAIL, USER_DETAIL, ID, ID> & ApiService<ID, RESOURCE>} IdentifiedApiService
+ */
+
+/**
+ * The identified api service construction parameters.
  * 
  * @template CONTENT The api service content type.
  * @template [SESSION_DETAIL=void] The session detail.
  * @template [USER_DETAIL=void] The user detail.
- * @typedef {Partial<ApiService<CONTENT, SESSION_DETAIL, USER_DETAIL>> & Partial<CryptServiceOptions>} ApiServiceParams
+ * @typedef {Partial<IdentifiedApiService<ID, CONTENT, SESSION_DETAIL, USER_DETAIL>> & Partial<CryptServiceOptions>} IdentifiedApiServiceParams
  */
 
-/**
- * The bad request excpetion.
- * @template [CAUSE=any] The cause of the exception.
- * @extends {HttpStatusException<CAUSE>}
- */
-export class BadRequestException extends HttpStatusException {
-
-    /**
-     * Create a new bad request exception.
-     *
-     * @param {string} [message] The message of the exception.
-     * @param {CAUSE} [cause] The cause of the exception. 
-     */
-    constructor(message = undefined, cause = undefined) {
-        super(message, cause, 400);
-    }
-}
+/////////////////////////////////////////////////////////////////////
+// Password validation
+/////////////////////////////////////////////////////////////////////
 
 /**
  * The valid password checking regular expression.
@@ -311,40 +561,42 @@ export const HAS_PUNCTUATION_REGEX = /\p{P}/u;
  */
 export const HAS_DIGIT_REGEX = /\p{N}/u;
 
-/**
- * Content entry is the key-value pair of the entry.
- *
- * @template [CONTENT=any] The type of the content.
- * @typedef {Object} ContentEntry
- * @property {KEY} id The identifier of the entry.
- * @property {CONTENT} content The content of the entry.
- */
+/////////////////////////////////////////////////////////////////////
+// In memory api service
+/////////////////////////////////////////////////////////////////////
 
 /**
  * @template CONTENT The api service content type.
  * @template [SESSION_DETAIL=void] The session detail.
  * @template [USER_DETAIL=UserInfo] The user detail.
+ * @template [ID=string] The identifier type.
+ * @template [USER_ID=ID] The user identifier type.
+ * @template [SESSION_ID=ID] The session identifier type.
+ * 
  * A class implementing an api service caching the content into memory.
+ * 
+ * @extends {IdentifiedApiService<ID, CONTENT, SESSION_DETAIL, USER_DETAIL>}
  */
 export class InMemoryApiService {
 
     /**
      * The contents of the API service.
-     * @type {Record<string, ContentEntry<CONTENT>>}
+     * @type {Record<USER_ID, Entry<ID, CONTENT>[]>}
      */
     #content = {};
 
     /**
      * The registered users of the api service.
+     * The mapping is from user name to the user data.
      * 
-     * @type {Record<string, UserData<USER_DETAIL>>}
+     * @type {Record<string, UserData<USER_DETAIL, USER_ID>>}
      */
     #users = {};
 
     /**
      * The valid authenticated sessions of the api service.
      * 
-     * @type {Record<string, SessionData<SESSION_DETAIL, USER_DETAIL>>}
+     * @type {Record<SESSION_ID, SessionData<SESSION_DETAIL, SESSION_ID, USER_ID>>}
      */
     #sessions = {};
 
@@ -532,7 +784,7 @@ export class InMemoryApiService {
 
     /**
      * Create a new api service.
-     * @param {ApiServiceParams} param 
+     * @param {IdentifiedApiServiceParams} param 
      */
     constructor(param) {
         if ("content" in param) {
@@ -562,8 +814,8 @@ export class InMemoryApiService {
     /**
      * Create a new session.
      * 
-     * @param {string} userId The user identifier.
-     * @returns {Promise<SessionData>} The promise of the session data.
+     * @param {USER_ID} userId The user identifier.
+     * @returns {Promise<SessionData<SESSION_DETAIL, SESSION_ID, USER_ID>>} The promise of the session data.
      */
     createSession(userId) {
         const now = Date.now();
@@ -582,7 +834,7 @@ export class InMemoryApiService {
                 };
                 resolve(this.#sessions[sessionId]);
             } else {
-                reject(new AccessForbiddenException("User access forbidden", undefined, userId));
+                reject(new AccessForbiddenException("User access forbidden!", undefined));
             }
         });
 
@@ -591,12 +843,12 @@ export class InMemoryApiService {
     /**
      * Update an existing session.
      * 
-     * @param {string} sessionId The session identifier.
-     * @param {string} userId The user identifier of the session user.
-     * @param {CONTENT} [userInfo] The new content of the session.
-     * @returns {Promise<SessionData<CONTENT>>} The promise of the updated session data.
+     * @param {SESSION_ID} sessionId The session identifier.
+     * @param {USER_ID} userId The user identifier of the session user.
+     * @param {SESSION_DETAIL} [sessionDetail] The new session detail of the session.
+     * @returns {Promise<SessionData<SESSION_DETAIL, SESSION_ID, USER_ID>>} The promise of the updated session data.
      */
-    updateSession(sessionId, userId, userInfo = undefined) {
+    updateSession(sessionId, userId, sessionDetail = undefined) {
         const now = Date.now();
         return Promise((resolve, reject) => {
             if (sessionId in this.#sessions) {
@@ -607,9 +859,9 @@ export class InMemoryApiService {
                             ...session,
                             updated: now,
                             expires: (this.sessionTimeOut == null ? null : now + this.sessionTimeOut),
-                            userInfo: (userInfo === undefined ? session.userInfo : userInfo)
+                            userInfo: (sessionDetail === undefined ? session.userInfo : sessionDetail)
                         };
-                        respond(this.#sessions[sessionId]);
+                        resolve(this.#sessions[sessionId]);
                     } else {
                         reject(new AuthenticationRequiredException("Session has expired"));
                     }
@@ -625,7 +877,7 @@ export class InMemoryApiService {
     /**
      * Close an existing session.
      * 
-     * @param {string} sessionId The session identifier.
+     * @param {SESSION_ID} sessionId The session identifier.
      * @param {number} [closeTime] The time of closing. Defaults to the current moment.
      * @returns {Promise<void>} THe promise of completion.
      */
@@ -640,9 +892,9 @@ export class InMemoryApiService {
             (id) => {
                 if (id in this.#sessions) {
                     const session = this.#sessions[id];
-                    if (session.expires == null || session.expires > now) {
+                    if (session.expires == null || session.expires > closeTime) {
                         // The session is active. 
-                        this.#sessions[id] = { ...session, expires: now };
+                        this.#sessions[id] = { ...session, expires: closeTime };
                     }
                     return;
                 } else {
@@ -721,7 +973,7 @@ export class InMemoryApiService {
 
     /**
      * Create a new user.
-     * @type {CreateUser<USER_DETAIL>}
+     * @type {CreateUser<USER_DETAIL, USER_ID>}
      */
     createUser(userName, secret, userInfo = {}, expiration = undefined) {
         const now = Date.now();
@@ -761,9 +1013,9 @@ export class InMemoryApiService {
     /**
      * Get todos of the user.
      * 
-     * @param {string} userId The user id of the todo owner.
-     * @param {Predicate<ContentEntry<CONTENT>>} [filter] The filter of the todo. Defaults to get all.
-     * @returns {ContentEntry<CONTENT>[]} The array of content entries.
+     * @param {USER_ID} userId The user id of the todo owner.
+     * @param {Predicate<Entry<ID, CONTENT>>} [filter] The filter of the todo. Defaults to get all.
+     * @returns {Entry<ID, CONTENT>[]} The array of content entries.
      */
     getContents(userId, filter = (() => true)) {
         return new Promise((resolve, reject) => {
@@ -782,8 +1034,8 @@ export class InMemoryApiService {
     /**
      * Get single todo.
      * 
-     * @param {string} userId The user identifier.
-     * @param {string} contentId The content identifier.
+     * @param {USER_ID} userId The user identifier.
+     * @param {ID} contentId The content identifier.
      * @param {string} [message] The error message, if the content is not found
      * @returns {Promise<CONTENT>} The promise of the todo.
      * @throws {NotFoundException} The not found exception wiht the todo identifier
@@ -833,8 +1085,8 @@ export class InMemoryApiService {
     /**
      * Create a new identifier.
      * 
-     * @param {string[]} [idCollection] The reserved identifiers.
-     * @returns {Promise<string>} The promise of a new unique identifier.
+     * @param {SESSION_ID[]} [idCollection] The reserved identifiers.
+     * @returns {Promise<SESSION_ID>} The promise of a new unique identifier.
      */
     _createId() {
         return new Promise((resolve, reject) => {
@@ -864,7 +1116,7 @@ export class InMemoryApiService {
     /**
      * Create a new content.
      * @param {Partial<CONTENT>} newContent The new content.
-     * @returns {Promise<ContentEntry<string, CONTENT>>} The new content entry.
+     * @returns {Promise<Entry<string, CONTENT>>} The new content entry.
      * @throws {InvalidParameterException<CONTENT>} The new content was invalid. 
      */
     async createContentEntry(newContent) {
@@ -920,7 +1172,7 @@ export class InMemoryApiService {
  * Create a new service.
  *
  * @template [CONTENT=any] The content type of the service.
- * @param {ApiServiceParams<CONTENT>} param 
+ * @param {IdentifiedApiServiceParams<CONTENT>} param 
  * @returns 
  */
 export default function createApiService(param) {
