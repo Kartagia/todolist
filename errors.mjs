@@ -191,13 +191,13 @@ function getStatusMessage(statusCode, context = null) {
     }
 }
 
-const validMessageFirstWordRegex = new RegExp("\\p{Lu}(?:[\\p{Ll}\\p{N}]*)", "u");
+const validMessageFirstWordRegex = new RegExp("\\p{Lu}(?:[\\p{L}\\p{N}\\p{P}]*)", "u");
 
-const validMessageWordRegex = new RegExp("[\\p{Ll}\\p{N}]+", "u");
+const validMessageWordRegex = new RegExp("[\\p{L}\\p{N}\p{P}]+", "u");
 
-const validMessageSentenceRegex = new RegExp(validMessageFirstWordRegex + "(?:[\\.,] " + validMessageWordRegex.source + ")*[.!\?]", "u");
+const validMessageSentenceRegex = new RegExp(validMessageFirstWordRegex + "(?:[\\.,]? " + validMessageWordRegex.source + ")*", "u");
 
-const validMessageRegex = new RegExp("^" +  validMessageSentenceRegex.source + "(?: " + validMessageSentenceRegex.source +  ")*" + "$", "u");
+const validMessageRegex = new RegExp("^" +  validMessageSentenceRegex.source + "(?:\\p{P}? " + validMessageSentenceRegex.source +  ")*\\p{P}?" + "$", "u");
 
 /**
  * The detail of a HttpStatusDetail
@@ -263,7 +263,7 @@ export class HttpStatusDetail {
             case "string":
                 return validMessageRegex.test(message);
             case "object":
-                return message === null;
+                return message == null;
         }
     }
 
@@ -278,7 +278,7 @@ export class HttpStatusDetail {
         if (this.validMessage(message)) {
             return message == null ? null : /** @type {string} */ message;
         } else {
-            throw new SyntaxError("Invalid status message");
+            throw new SyntaxError("Invalid status message " + message);
         }
     }
 
