@@ -327,6 +327,58 @@ export const HAS_PUNCTUATION_REGEX = /\p{P}/u;
  */
 export const HAS_DIGIT_REGEX = /\p{N}/u;
 
+/**
+ * A predicate passing a password with one punctuation character, one digit, and at least one
+ * upper and lower case letter, and contains only spaces, letters, digits, and punctuation characters.
+ * 
+ * @type {Predicate<string>} 
+ */
+export function validPassword(password) {
+    return (typeof password === "string") &&
+        VALID_PASSWORD_REGEX.test(string) &&
+        HAS_LOWER_CASE_LETTER_REGEX.test(string) &&
+        HAS_UPPER_CASE_LETTER_REGEX.test(string) &&
+        HAS_DIGIT_REGEX.test(string) &&
+        HAS_PUNCTUATION_REGEX.test(string);
+}
+
+/**
+ * Check validity of a password.
+ * 
+ * @param {*} password
+ * @param {string} [message] The error message on failure. 
+ * @returns {string} The valid password.
+ * @throws {InvalidParameterException<void, SyntaxError|TypeError>} The secret was invalid.
+ */
+export function checkPassword(password, message="Invalid password") {
+    if (validPassword(password)) {
+        return password;
+    } else if (typeof password === "string") {
+        if (VALID_PASSWORD_REGEX.test(password)) {
+            if (!HAS_LOWER_CASE_LETTER_REGEX.test(password)) {
+                // The secret does not have lower case letter.
+                throw (new InvalidParameterException("secret", undefined, message, new SyntaxError("Missing lower case letter")));
+            } else if (!HAS_UPPER_CASE_LETTER_REGEX.test(password)) {
+                // The secret does not have an upper case letter.
+                throw (new InvalidParameterException("secret", undefined, message, new SyntaxError("Missing upper case letter")));
+            } else if (!HAS_DIGIT_REGEX.test(password)) {
+                // The secret does not have punctuation character.
+                throw (new InvalidParameterException("secret", undefined, message, new SyntaxError("Missing digit")));
+            } else if (!HAS_PUNCTUATION_REGEX.test(password)) {
+                // The secret does not have punctuation character.
+                throw (new InvalidParameterException("secret", undefined, message, new SyntaxError("Missing punctuation character")));
+            } else {
+                // The secret is okay.
+                return password;
+            }
+        } else {
+            throw (new InvalidParameterException("secret", undefined, message, new SyntaxError("Secret must start and end letter, number, or punctuation character, and may contain single spaces between the first and last character.")))
+        }
+    } else {
+        throw (new InvalidParameterException("secret", undefined, message, new TypeError("Secret was not a string")));
+    }
+}
+
 /////////////////////////////////////////////////////////////////////
 // In memory api service
 /////////////////////////////////////////////////////////////////////
@@ -589,7 +641,7 @@ export class InMemoryApiService {
             if (userId in this.#users) {
                 const sessionId = this._createId(Object.getOwnPropertyNames(this.#sessions));
                 this.#sessions[sessionId] = null;
-                secret = this._createId(this.#reservedSessionSecrets.map( entry => (entry[0])));
+                secret = this._createId(this.#reservedSessionSecrets.map(entry => (entry[0])));
                 this.#reservedSessionSecrets.push([secret, sessionId]);
                 this.#sessions[sessionId] = {
                     userId,
@@ -705,33 +757,14 @@ export class InMemoryApiService {
      * @param {string} secret The checked secret.
      * @param {string} [message] The error messaage, if the test fails.
      * @return {Promise<string>} The promise of a valid password.
-     * @throws {InvalidParameterException<string, SyntaxError|TypeError>} The secret was invalid.
+     * @throws {InvalidParameterException<void, SyntaxError|TypeError>} The secret was invalid.
      */
     checkSecret(secret, message = "Invalid secret") {
         return new Promise((resolve, reject) => {
-            if (typeof secret === "string") {
-                if (VALID_PASSWORD_REGEX.test(secret)) {
-                    if (!HAS_LOWER_CASE_LETTER_REGEX.test(secret)) {
-                        // The secret does not have lower case letter.
-                        reject(new InvalidParameterException("secret", undefined, message, new SyntaxError("Missing lower case letter")));
-                    } else if (!HAS_UPPER_CASE_LETTER_REGEX.test(secret)) {
-                        // The secret does not have an upper case letter.
-                        reject(new InvalidParameterException("secret", undefined, message, new SyntaxError("Missing upper case letter")));
-                    } else if (!HAS_DIGIT_REGEX.test(secret)) {
-                        // The secret does not have punctuation character.
-                        reject(new InvalidParameterException("secret", undefined, message, new SyntaxError("Missing digit")));
-                    } else if (!HAS_PUNCTUATION_REGEX.test(secret)) {
-                        // The secret does not have punctuation character.
-                        reject(new InvalidParameterException("secret", undefined, message, new SyntaxError("Missing punctuation character")));
-                    } else {
-                        // The secret is okay.
-                        resolve(secret);
-                    }
-                } else {
-                    reject(new InvalidParameterException("secret", undefined, message, new SyntaxError("Secret must start and end letter, number, or punctuation character, and may contain single spaces between the first and last character.")))
-                }
-            } else {
-                reject(new InvalidParameterException("secret", undefined, message, new TypeError("Secret was not a string")));
+            try {
+                resolve(checkPassword(secret, message));
+            } catch (error) {
+                reject(error);
             }
         });
     }
