@@ -191,13 +191,13 @@ function getStatusMessage(statusCode, context = null) {
     }
 }
 
-const validMessageFirstWordRegex = new RegExp("\\p{Lu}(?:[\\p{Ll}\\p{N}]*)", "u");
+const validMessageFirstWordRegex = new RegExp("\\p{Lu}(?:[\\p{L}\\p{N}\\p{P}]*)", "u");
 
-const validMessageWordRegex = new RegExp("[\\p{Ll}\\p{N}]+", "u");
+const validMessageWordRegex = new RegExp("[\\p{L}\\p{N}\p{P}]+", "u");
 
-const validMessageSentenceRegex = new RegExp(validMessageFirstWordRegex + "(?:[\\.,] " + validMessageWordRegex.source + ")*[.!\?]", "u");
+const validMessageSentenceRegex = new RegExp(validMessageFirstWordRegex + "(?:[\\.,]? " + validMessageWordRegex.source + ")*", "u");
 
-const validMessageRegex = new RegExp("^" +  validMessageSentenceRegex.source + "(?: " + validMessageSentenceRegex.source +  ")*" + "$", "u");
+const validMessageRegex = new RegExp("^" +  validMessageSentenceRegex.source + "(?:\\p{P}? " + validMessageSentenceRegex.source +  ")*\\p{P}?" + "$", "u");
 
 /**
  * The detail of a HttpStatusDetail
@@ -263,7 +263,7 @@ export class HttpStatusDetail {
             case "string":
                 return validMessageRegex.test(message);
             case "object":
-                return message === null;
+                return message == null;
         }
     }
 
@@ -278,7 +278,7 @@ export class HttpStatusDetail {
         if (this.validMessage(message)) {
             return message == null ? null : /** @type {string} */ message;
         } else {
-            throw new SyntaxError("Invalid status message");
+            throw new SyntaxError("Invalid status message " + message);
         }
     }
 
@@ -396,6 +396,24 @@ export class AuthenticationRequiredException extends HttpStatusException {
 }
 
 /**
+ * The bad request excpetion.
+ * @template [CAUSE=any] The cause of the exception.
+ * @extends {HttpStatusException<CAUSE>}
+ */
+export class BadRequestException extends HttpStatusException {
+
+    /**
+     * Create a new bad request exception.
+     *
+     * @param {string} [message] The message of the exception.
+     * @param {CAUSE} [cause] The cause of the exception. 
+     */
+    constructor(message = undefined, cause = undefined) {
+        super(message, cause, 400);
+    }
+}
+
+/**
  * An exception indicating the resource access was forbidden.
  *
  * @template [CAUSE=any]
@@ -415,8 +433,13 @@ export class AccessForbiddenException extends HttpStatusException {
 
 }
 
+//////////////////////////////////////////////////////////////////////////////////
+// Generid more detaileed exceptions
+//////////////////////////////////////////////////////////////////////////////////
 
 /**
+ * An invalid parameter exception indicates some parameter was ivnalid.
+ * It contaisn the parameter name, and may contain the invalid value, message, or cause.
  * 
  * @template [DETAIL=any] The parameter value type.
  * @template [CAUSE=any] The cause of the exception.
