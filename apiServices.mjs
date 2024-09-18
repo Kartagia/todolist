@@ -7,29 +7,7 @@
 
 import { AccessForbiddenException, AuthenticationRequiredException, HttpStatusException } from "./errors.mjs";
 import { NotFoundException } from "./errors.mjs";
-import { InvalidParameterException } from "./errors.mjs";
-///////////////////////////////////////////////////////////////////
-// Exceptions
-///////////////////////////////////////////////////////////////////
-
-/**
- * The bad request excpetion.
- * @template [CAUSE=any] The cause of the exception.
- * @extends {HttpStatusException<CAUSE>}
- */
-export class BadRequestException extends HttpStatusException {
-
-    /**
-     * Create a new bad request exception.
-     *
-     * @param {string} [message] The message of the exception.
-     * @param {CAUSE} [cause] The cause of the exception. 
-     */
-    constructor(message = undefined, cause = undefined) {
-        super(message, cause, 400);
-    }
-}
-
+import { InvalidParameterException, BadRequestException } from "./errors.mjs";
 
 ///////////////////////////////////////////////////////////////////
 // The hashing related data types and methods.
