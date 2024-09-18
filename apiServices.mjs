@@ -335,11 +335,11 @@ export const HAS_DIGIT_REGEX = /\p{N}/u;
  */
 export function validPassword(password) {
     return (typeof password === "string") &&
-        VALID_PASSWORD_REGEX.test(string) &&
-        HAS_LOWER_CASE_LETTER_REGEX.test(string) &&
-        HAS_UPPER_CASE_LETTER_REGEX.test(string) &&
-        HAS_DIGIT_REGEX.test(string) &&
-        HAS_PUNCTUATION_REGEX.test(string);
+        VALID_PASSWORD_REGEX.test(password) &&
+        HAS_LOWER_CASE_LETTER_REGEX.test(password) &&
+        HAS_UPPER_CASE_LETTER_REGEX.test(password) &&
+        HAS_DIGIT_REGEX.test(password) &&
+        HAS_PUNCTUATION_REGEX.test(password);
 }
 
 /**
