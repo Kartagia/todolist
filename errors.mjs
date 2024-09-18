@@ -396,6 +396,24 @@ export class AuthenticationRequiredException extends HttpStatusException {
 }
 
 /**
+ * The bad request excpetion.
+ * @template [CAUSE=any] The cause of the exception.
+ * @extends {HttpStatusException<CAUSE>}
+ */
+export class BadRequestException extends HttpStatusException {
+
+    /**
+     * Create a new bad request exception.
+     *
+     * @param {string} [message] The message of the exception.
+     * @param {CAUSE} [cause] The cause of the exception. 
+     */
+    constructor(message = undefined, cause = undefined) {
+        super(message, cause, 400);
+    }
+}
+
+/**
  * An exception indicating the resource access was forbidden.
  *
  * @template [CAUSE=any]
@@ -415,8 +433,13 @@ export class AccessForbiddenException extends HttpStatusException {
 
 }
 
+//////////////////////////////////////////////////////////////////////////////////
+// Generid more detaileed exceptions
+//////////////////////////////////////////////////////////////////////////////////
 
 /**
+ * An invalid parameter exception indicates some parameter was ivnalid.
+ * It contaisn the parameter name, and may contain the invalid value, message, or cause.
  * 
  * @template [DETAIL=any] The parameter value type.
  * @template [CAUSE=any] The cause of the exception.
