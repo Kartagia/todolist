@@ -42,6 +42,13 @@ import { createCompleteAllStepsBlockingTask, createCompleteAnyTask, createSimple
  */
 
 /**
+ * Supplier of a value.
+ * @template [VALUE=any]
+ * @callback Supplier
+ * @returns {Promise<VALUE>} The promise of the supplied value.
+ */
+
+/**
  * Getter of a value.
  * @template [KEY=any] The type of the key.
  * @template [RESULT=any] The type of the getter value.
@@ -241,21 +248,69 @@ import { createCompleteAllStepsBlockingTask, createCompleteAnyTask, createSimple
 ///////////////////////////////////////////////////////////////////
 
 /**
+ * Remove a content with identifier.
+ * @template [ID=string] The identifier type of the api service.
+ * @typedef {Readonly<Getter<ID, undefined, NotFoundException|UnsupportedException>>} RemoveContent
+ */
+
+/**
+ * Get a content.
+ * @template [ID=string] The identifier type of the api service.
+ * @template [RESOURCE=any] The API service content type. The resource the service provides.
+ * @typedef {Readonly<Getter<ID, RESOURCE, NotFoundException>>} GetContent
+ */
+
+/**
+ * Replace an existing content in the api service.
+ * @template [ID=string] The identifier type of the api service.
+ * @template [RESOURCE=any] The API service content type. The resource the service provides.
+ * @typedef {Readonly<Setter<ID, RESOURCE, InvalidParameterException|UnsupportedException>>} SetContent
+ */
+
+/**
+ * Create a content in Api Service.
+ * @template [ID=string] The identifier type of the api service.
+ * @template [RESOURCE=any] The API service content type. The resource the service provides.
+ * @template [SOURCE=RESOURCE] The API service content source type.
+ * @typedef {Readonly<Getter<SOURCE, ID, InvalidParameterException|UnsupportedException>>} CreateContent
+ */
+
+/**
  * A simple api service.
  * @template [ID=string] The identifier type of the api service.
  * @template [RESOURCE=any] The API service content type. The resource the service provides.
+ * @template [SOURCE=RESOURCE] The API service content source type.
  * @typedef {Object} ApiService
- * @property {Readonly<Getter<ID,RESOURCE>>} getContent Get content of the API service.
- * @property {Readonly<Setter<ID,RESOURCE>>} [setContent] The optional replacer of the content.
- * @property {Readonly<Creator<Partial<RESOURCE>, Entry<ID, RESOURCE>>} [createContent] Create a new content.
+ * @property {Readonly<Supplier<Entry<ID, RESOURCE>[]>>} getContents Get all contents of the service.
+ * @property {GetContent<ID, RESOURCE>} getContent Get content of the API service.
+ * @property {SetContent<ID, RESOURCE>} [setContent] The optional replacer of the content.
+ * @property {RemoveContent<ID>} [removeContent] The optional remover of the content.
+ * @property {CreateContent<ID, RESOURCE, SOURCE>} [createContent] Create a new content.
  */
+
+/**
+ * An immutable api service.
+ * 
+ * @template [ID=string] The identifier type of the api service.
+ * @template [RESOURCE=any] The API service content type. The resource the service provides.
+ * @typedef {Omit<ApiService<ID, RESOURCE>, "setContent"|"createContent"|"removeContent"} ImmutableApiService An immutable api service.
+ */
+
+/**
+ * An Api service implementing changing and adding resources.
+ * 
+ * @template [ID=string] The identifier type of the api service.
+ * @template [RESOURCE=any] The API service content type. The resource the service provides.
+ * @typedef {Required<ApiService<ID, RESOURCE>>} MutableAPiService 
+ */
+
 /**
  * An user identifying Api Service.
  * @template [RESOURCE_ID=string] The identifier type of the api service.
  * @template [USER_ID=string] The identifier type of the user.
  * @template [RESOURCE=any] The API service content type. The resource the service provides.
  * @template [USER_DETAIL=void] The user detail.
- * @typedef {UserRegistry<USER_DETAIL, USER_ID> & ApiService<RESOURCE_ID, RESOURCE>}
+ * @typedef {UserRegistry<USER_DETAIL, USER_ID> & ApiService<RESOURCE_ID, RESOURCE>} UserAndApiService
  */
 
 /**
@@ -463,6 +518,123 @@ export class SimpleApiService {
             ));
         }
     }
+}
+
+/**
+ * A simple api service implements an immutable api service.
+ * 
+ * @template RESOURCE The resource type stored by the epi.
+ * @template [ID=string] The identifier type of the service.
+ * @extends {Required<ApiService<ID, RESOURCE>>}
+ */
+export class SimpleMutableApiService {
+
+    /**
+     * 
+     */
+    #contents = new Map();
+
+    constructor(entries=[]) {
+        if (entries instanceof Map) {
+            this.#contents = entries;
+        } else {
+            this.#contents = new Map([...entries].map( ({id, content}) => ([id, content])));
+        }
+    }
+
+    getContent(id) {
+        if (this.#contents.has(id)) {
+            return Promise.resolve(this.#contents.get(id));
+        } else {
+            return Promise.reject(new NotFoundException(`Resource not found`));
+        }
+    }
+
+    /**
+     * Validates the value.
+     * @type {PredicatePromise<RESOURCE>}
+     */
+    validContent(value) {
+        if (value == null) {
+            return Promise.reject(new TypeError("Undefined value"));
+        } else {
+            return Promise.resolve();
+        }
+    }
+
+    /**
+     * The temporarily reserved identifiers.
+     * @type {Map<ID, number>}
+     */
+    #reservedIds = new Map();
+
+    /**
+     * Create content id, and temporarily reserve it.
+     */
+    createContentId() {
+        const now = Date.now();
+        var id = crypto.randomUUID();
+        while (this.#reservedIds.has(id)) {
+            id = crypto.randomUUID();
+        }
+        this.#reservedIds.set(id, now);
+        return Promise.resolve(id);
+    }
+
+    /**
+     * The validator of a new content.
+     * @type {Readonly<Getter<Partial<RESOURCE>, Entry<ID,RESOURCE>>>} 
+     */
+    validNewContent(value) {
+        const content = value;
+        return this.validContent(content).then(
+            () => {
+                this.createContentId().then(
+                    (id) => {
+                        return /** @type {Entry<ID, RESOURCE>} */ {id, content};
+                    }, 
+                    (error) => {
+                        throw new Error("Out of Memory Error - Could not create new id");
+                    }
+                )
+            }
+        )
+    }
+
+    removeContent(id) {
+        if (this.#contents.has(id)) {
+            this.#contents.delete(id);
+            this.#reservedIds.remove(id);
+            return Promise.reject();
+        } else {
+            return Promise.reject(new NotFoundException(`Missing resource`));
+        }
+    }
+
+    setContent(id, value, parameter="content", message="Invalid content") {
+        return this.validContent(value).then(
+            () => {
+                this.#contents.set(id, value);
+                return;
+            }, 
+            (error) => {
+                throw new InvalidParameterException(parameter, value, message, error);
+            }
+        )
+    }
+
+    createContent(value, parameter="content", message="Invalid content") {
+        return this.validNewContent(value).then( 
+            (created) => {
+                this.#contents.set(created.id, created.content);
+                return created.id;
+            }, 
+            (error) => {
+                throw new InvalidParameterException(parameter, value, message, error);
+            }
+        )
+    }
+
 }
 
 /**
