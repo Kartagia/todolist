@@ -384,6 +384,88 @@ export function checkPassword(password, message="Invalid password") {
 /////////////////////////////////////////////////////////////////////
 
 /**
+ * A simple api service implements an immutable api service.
+ * 
+ * @template RESOURCE The resource type stored by the epi.
+ * @template [ID=string] The identifier type of the service.
+ * 
+ * @extends {ApiService<ID, RESOURCE>}
+ */
+export class SimpleApiService {
+
+    /**
+     * The contents of the API service.
+     * @type {Map<ID, RESOURCE>}
+     */
+    #contents = new Map();
+
+    /**
+     * Create a new simple API service.
+     * @param {Map<ID, RESOURCE>|Iterable<Entry<ID, RESOURCE>>|Iterator<Entry<ID, RESOURCE>>} [entries=[]] The entries
+     * of the srvice. 
+     */
+    constructor(entries = []) {
+        if (entries instanceof Map) {
+            // Map. 
+            this.#contents = new Map(entries);
+        } else if ("next" in entries) {
+            // Iterator
+            this.#contents = new Map([...entries].map( ({id, content}) => [id, content]));
+        } else if (Symbol.iterator in entries) {
+            // Iterable
+            this.#contents = new Map([...entries].map( ({id, content}) => [id, content]));
+        } else {
+            throw new InvalidParameterException("entries", entries, "Invalid entries", 
+                new TypeError("Not a map, an iterable, or an iterator")
+            );
+        }
+    }
+    
+    /**
+     * Get content of an identifier.
+     * 
+     * @type {Readonly<Getter<ID, RESOURCE>>} 
+     */
+    getContent(id, message = "Content not found") {
+        if (this.validId(id)) {
+            const entry = this.#contents.find( cursor => (cursor.id === id));
+            if (entry) {
+                return Promise.resolve(entry.content);
+            } else {
+                return Promise.reject(new NotFoundException(message));
+            }
+        } else {
+            return Promise.reject(new BadRequestException("Invalid identifier"));
+        }
+    }
+
+    /**
+     * Get all content entries.
+     * @param {Predicate<Entry<ID, RESOURCE>>} [filter] The filter of contents. Defaults to the
+     * filter accepting all values.
+     * @returns {Promise<Entry<ID, RESOURCE>[]} The promise of the entires fulfilling the
+     * promise. 
+     */
+    getContents(filter = undefined) {
+        if (filter) {
+            return Promise.resolve(this.#contents.entries().reduce( (result, [id, content]) => {
+                const newEntry = {
+                    id, content
+                };
+                if (filter(newEntry)) {
+                    result.push(newEntry);
+                }
+                return result;
+            }, []))
+        } else {
+            return Promise.resolve([...this.#contents.entries()].map( 
+                ([id, content]) => ({id, content})
+            ));
+        }
+    }
+}
+
+/**
  * @template CONTENT The api service content type.
  * @template [SESSION_DETAIL=void] The session detail.
  * @template [USER_DETAIL=UserInfo] The user detail.
