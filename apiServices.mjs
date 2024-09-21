@@ -530,10 +530,14 @@ export class SimpleApiService {
 export class SimpleMutableApiService {
 
     /**
-     * 
+     * The contents of the mutable api service.
+     * @type {Map<ID, RESOURCE>}
      */
     #contents = new Map();
 
+    /**
+     * Create a new simple mutable Api Service.
+     */
     constructor(entries=[]) {
         if (entries instanceof Map) {
             this.#contents = entries;
@@ -544,7 +548,7 @@ export class SimpleMutableApiService {
 
     getContent(id) {
         if (this.#contents.has(id)) {
-            return Promise.resolve(this.#contents.get(id));
+            return Promise.resolve(/** @type {RESOURCE} */ this.#contents.get(id));
         } else {
             return Promise.reject(new NotFoundException(`Resource not found`));
         }
@@ -604,8 +608,8 @@ export class SimpleMutableApiService {
     removeContent(id) {
         if (this.#contents.has(id)) {
             this.#contents.delete(id);
-            this.#reservedIds.remove(id);
-            return Promise.reject();
+            this.#reservedIds.delete(id);
+            return Promise.resolve();
         } else {
             return Promise.reject(new NotFoundException(`Missing resource`));
         }
@@ -635,6 +639,30 @@ export class SimpleMutableApiService {
         )
     }
 
+    /**
+     * Get all content entries.
+     * @param {Predicate<Entry<ID, RESOURCE>>} [filter] The filter of contents. Defaults to the
+     * filter accepting all values.
+     * @returns {Promise<Entry<ID, RESOURCE>[]} The promise of the entires fulfilling the
+     * promise. 
+     */
+    getContents(filter = undefined) {
+        if (filter) {
+            return Promise.resolve(this.#contents.entries().reduce( (result, [id, content]) => {
+                const newEntry = {
+                    id, content
+                };
+                if (filter(newEntry)) {
+                    result.push(newEntry);
+                }
+                return result;
+            }, []))
+        } else {
+            return Promise.resolve([...this.#contents.entries()].map( 
+                ([id, content]) => ({id, content})
+            ));
+        }
+    }
 }
 
 /**
